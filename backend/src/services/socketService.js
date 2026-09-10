@@ -45,7 +45,7 @@ const initSocket = (httpServer) => {
   };
 
   io.on("connection", (socket) => {
-    const state = { asset: "BTC", range: "1h" };
+    const state = { asset: "BTC", range: "24h" };
     socket.join(roomKey(state.asset, state.range));
     activeAssets.track(state.asset);
     sendSnapshot(socket, state.asset, state.range);
@@ -68,7 +68,15 @@ const initSocket = (httpServer) => {
       if (prev.asset !== state.asset) {
         activeAssets.untrack(prev.asset);
         activeAssets.track(state.asset);
-        ingestNow(state.asset); // fire and forget — get this asset warm
+        // Warm a not-yet-tracked asset, then push a fresh snapshot when it lands
+        // (avoids leaving the user on a "simulated" view for up to a broadcast).
+        ingestNow(state.asset)
+          .then(() => {
+            if (state.asset === parsed.data.asset || !parsed.data.asset) {
+              sendSnapshot(socket, state.asset, state.range, { fresh: true });
+            }
+          })
+          .catch(() => {});
       }
 
       sendSnapshot(socket, state.asset, state.range);

@@ -1,5 +1,6 @@
-const { getSentimentTrend } = require("./newsService");
+const { getSentimentTrend, getSentimentChange } = require("./newsService");
 const { getPriceChange } = require("./priceService");
+const { normalizeAsset } = require("./assetService");
 const { DATA_SOURCE, worst, isUsable } = require("../lib/dataSource");
 
 const toSentimentPercent = (score) => ((score + 1) / 2) * 100;
@@ -7,6 +8,7 @@ const toSentimentPercent = (score) => ((score + 1) / 2) * 100;
 const NOTE = "Describes how sentiment and price moved this window. Not a predictive correlation.";
 const INSUFFICIENT = "Not enough live data to compare sentiment and price this window.";
 
+/** Endpoint delta of the bucketed trend (fast path when there are >= 2 buckets). */
 const computeSentimentChange = (points = []) => {
   if (points.length < 2) return null;
   const first = points[0].sentiment_avg ?? 0;
@@ -30,8 +32,10 @@ const classifyCoMovement = (sentimentChange, priceChange) => {
 /**
  * Build the insight object from already-fetched trend + price. Pure —
  * unit-tested directly without mocking the data providers.
+ * `sentimentChangeFallback` is a half-window comparison used when the
+ * bucketed trend has fewer than two points.
  */
-const buildInsight = ({ trend, price, range = "1h" }) => {
+const buildInsight = ({ trend, price, range = "1h", sentimentChangeFallback = null }) => {
   const points = trend.points || [];
   const base = {
     asset: trend.asset,
@@ -42,9 +46,9 @@ const buildInsight = ({ trend, price, range = "1h" }) => {
     price_series: price.series || []
   };
 
-  const haveSentiment = points.length >= 2 && isUsable(trend.data_source);
+  const sentimentChange = computeSentimentChange(points) ?? sentimentChangeFallback;
+  const haveSentiment = sentimentChange !== null;
   const havePrice = price.price_change !== null && isUsable(price.price_source);
-  const sentimentChange = computeSentimentChange(points);
 
   if (!haveSentiment || !havePrice) {
     return {
@@ -66,11 +70,13 @@ const buildInsight = ({ trend, price, range = "1h" }) => {
 };
 
 const getCorrelationInsight = async (asset = "BTC", range = "1h") => {
-  const [trend, price] = await Promise.all([
+  const symbol = normalizeAsset(asset).symbol;
+  const [trend, price, sentimentChangeFallback] = await Promise.all([
     getSentimentTrend(asset, range),
-    getPriceChange(asset, range)
+    getPriceChange(asset, range),
+    getSentimentChange(symbol, range)
   ]);
-  return buildInsight({ trend, price, range });
+  return buildInsight({ trend, price, range, sentimentChangeFallback });
 };
 
 module.exports = {

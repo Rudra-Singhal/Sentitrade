@@ -5,7 +5,7 @@ const { errInfo } = logger;
 const client = createProviderClient("edgar", { timeout: 9000, retries: 2 });
 
 // SEC requires a descriptive User-Agent with contact info.
-const USER_AGENT = "SentiTrade educational project (contact: github.com/Rudra-Singhal/Sentitrade)";
+const USER_AGENT = "SentiTrade/2.0 admin@sentitrade.dev";
 
 // Central Index Keys (zero-padded to 10 digits) for the equity universe.
 const CIK = {

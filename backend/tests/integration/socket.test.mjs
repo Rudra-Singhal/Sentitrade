@@ -115,7 +115,7 @@ describe("socket rooms", () => {
     await Promise.all([nextUpdate(a), nextUpdate(b)]); // drain initial snapshots
 
     const both = Promise.all([nextUpdate(a), nextUpdate(b)]);
-    io.to("BTC:1h").emit("sentiment:update", { sentiment: { asset: "BTC" }, correlation: {} });
+    io.to("BTC:24h").emit("sentiment:update", { sentiment: { asset: "BTC" }, correlation: {} });
 
     const [pa, pb] = await both;
     expect(pa.sentiment.asset).toBe("BTC");

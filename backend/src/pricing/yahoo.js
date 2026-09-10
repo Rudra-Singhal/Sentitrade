@@ -12,19 +12,29 @@ const PLAN = {
   "24h": { interval: "15m", range: "5d" }
 };
 
-/** Pure: Yahoo chart payload -> price series filtered to the window. */
+/**
+ * Pure: Yahoo chart payload -> price series, preferring the requested window
+ * but falling back to the tail of the session when the market is closed and
+ * the window would otherwise be empty (last close is still real data).
+ */
 const mapChart = (payload, sinceMs) => {
   const result = payload?.chart?.result?.[0];
   const stamps = result?.timestamp || [];
   const closes = result?.indicators?.quote?.[0]?.close || [];
-  const series = [];
+
+  const all = [];
   for (let i = 0; i < stamps.length; i += 1) {
-    const price = closes[i];
-    const ms = stamps[i] * 1000;
-    if (price == null || ms < sinceMs) continue;
-    series.push({ timestamp: new Date(ms).toISOString(), price: Number(Number(price).toFixed(2)) });
+    if (closes[i] == null) continue;
+    all.push({
+      timestamp: new Date(stamps[i] * 1000).toISOString(),
+      price: Number(Number(closes[i]).toFixed(2)),
+      ms: stamps[i] * 1000
+    });
   }
-  return series;
+
+  const windowed = all.filter((p) => p.ms >= sinceMs);
+  const chosen = windowed.length >= 2 ? windowed : all.slice(-12);
+  return chosen.map(({ timestamp, price }) => ({ timestamp, price }));
 };
 
 const yahooProvider = {

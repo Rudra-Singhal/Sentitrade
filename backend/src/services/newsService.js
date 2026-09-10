@@ -6,16 +6,10 @@ const { makeMockNews, makeMockTrend } = require("./mockDataService");
 const { syntheticOrNull } = require("../lib/fallback");
 const { DATA_SOURCE } = require("../lib/dataSource");
 
-// A read is "live" if the freshest stored document was ingested within this
-// window (the scheduler polls every 120s). Older -> "cached".
-const LIVE_FRESHNESS_MS = 10 * 60 * 1000;
-
-// Documents scoring below this are kept in the store but excluded from the
-// sentiment read/trend (off-topic mentions, query noise). `$not $lt` also
+// Off-topic (relevance < 0.35) and near-duplicate documents stay in the store
+// but are excluded from the sentiment read and the trend. `$not $lt` also
 // matches pre-M2 documents that have no relevance score.
 const RELEVANCE_MIN = 0.35;
-// Off-topic + near-duplicate documents stay in the store but are excluded from
-// the sentiment read and the trend (counted once per near-dup cluster).
 const qualityFilter = {
   relevance: { $not: { $lt: RELEVANCE_MIN } },
   is_duplicate: { $ne: true }
@@ -50,20 +44,34 @@ const toItem = (doc) => ({
   timestamp: doc.published_at
 });
 
+// "Recent" bound for the gauge / social read, independent of the selected
+// range — so a stale headline can't present as a live reading.
+const RECENT_MS = 72 * 60 * 60 * 1000;
+
 const readDocsByType = async (symbol, types, limit) =>
-  RawDocument.find({ primary_asset: symbol, source_type: { $in: types }, ...qualityFilter })
+  RawDocument.find({
+    primary_asset: symbol,
+    source_type: { $in: types },
+    published_at: { $gte: new Date(Date.now() - RECENT_MS) },
+    ...qualityFilter
+  })
     .sort({ published_at: -1 })
     .limit(Number(limit))
     .lean();
 
 const readNewsDocs = (symbol, limit) => readDocsByType(symbol, ["news"], limit);
 
-const freshness = (docs) => {
+// Freshness from how old the newest *published* item is (not when we fetched).
+// NewsAPI's free tier lags ~24h, so "delayed" is the honest label for it.
+const publishedFreshness = (docs) => {
   const newest = docs.reduce(
-    (max, d) => Math.max(max, d.ingested_at ? new Date(d.ingested_at).getTime() : 0),
+    (max, d) => Math.max(max, d.published_at ? new Date(d.published_at).getTime() : 0),
     0
   );
-  return Date.now() - newest < LIVE_FRESHNESS_MS ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
+  const ageMs = Date.now() - newest;
+  if (ageMs < 90 * 60 * 1000) return DATA_SOURCE.LIVE;
+  if (ageMs < 24 * 60 * 60 * 1000) return DATA_SOURCE.DELAYED;
+  return DATA_SOURCE.CACHED;
 };
 
 /** Retail/forum social sentiment for one asset (StockTwits, Reddit, ...). */
@@ -81,14 +89,14 @@ const getSocialSentiment = async (asset = "BTC", limit = 40) => {
   const raw = await readDocsByType(symbol, ["social", "forum"], limit * 2);
   // Drop suspected-bot / spam posts from the aggregate.
   const docs = raw.filter((d) => (d.author?.quality ?? 1) >= 0.3).slice(0, limit);
-  if (!docs.length) return empty;
+  if (docs.length < 3) return empty;
 
   const summary = averageSentiment(docs.map(toItem));
   const bull = docs.filter((d) => d.sentiment?.label === "positive").length;
   const bear = docs.filter((d) => d.sentiment?.label === "negative").length;
 
   return {
-    data_source: freshness(docs),
+    data_source: publishedFreshness(docs),
     count: docs.length,
     score_percent: summary.scorePercent,
     label: summary.label,
@@ -108,14 +116,7 @@ const getLatestSentiment = async (asset = "BTC", limit = 20, _refresh = true) =>
   if (isMongoReady()) {
     const docs = await readNewsDocs(symbol, limit);
     items = docs.map(toItem);
-    if (items.length) {
-      const freshestIngest = docs.reduce(
-        (max, d) => Math.max(max, d.ingested_at ? new Date(d.ingested_at).getTime() : 0),
-        0
-      );
-      dataSource =
-        Date.now() - freshestIngest < LIVE_FRESHNESS_MS ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
-    }
+    if (items.length) dataSource = publishedFreshness(docs);
   }
 
   if (!items.length) {
@@ -141,9 +142,15 @@ const getLatestSentiment = async (asset = "BTC", limit = 20, _refresh = true) =>
   };
 };
 
+// Bucket width scales with the range — news is sparse, minute buckets leave
+// most windows with too few points to plot.
+const BUCKET_MINUTES = { "5m": 1, "1h": 5, "24h": 30 };
+const toPercent = (score) => Math.round(((score + 1) / 2) * 100);
+
 const getSentimentTrend = async (asset = "BTC", range = "1h") => {
   const assetConfig = normalizeAsset(asset);
   const minutes = toMinutes(range);
+  const binSize = BUCKET_MINUTES[String(range).toLowerCase()] || 5;
 
   const degrade = () => {
     const mock = syntheticOrNull("trend", () => makeMockTrend(assetConfig, Math.min(minutes, 240)));
@@ -155,7 +162,7 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
   if (!isMongoReady()) return degrade();
 
   const since = new Date(Date.now() - minutes * 60 * 1000);
-  const points = await RawDocument.aggregate([
+  const rows = await RawDocument.aggregate([
     {
       $match: {
         primary_asset: assetConfig.symbol,
@@ -166,39 +173,77 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
     },
     {
       $group: {
-        _id: {
-          $dateToString: {
-            date: "$published_at",
-            format: "%Y-%m-%dT%H:%M:00.000Z",
-            timezone: "UTC"
-          }
-        },
+        _id: { $dateTrunc: { date: "$published_at", unit: "minute", binSize } },
         sentiment_avg: { $avg: "$sentiment.score" },
         count: { $sum: 1 }
       }
     },
-    { $sort: { _id: 1 } },
-    {
-      $project: {
-        _id: 0,
-        timestamp: "$_id",
-        sentiment_avg: { $round: ["$sentiment_avg", 4] },
-        count: 1
-      }
-    }
+    { $sort: { _id: 1 } }
   ]);
 
-  if (!points.length) return degrade();
+  if (!rows.length) {
+    // Distinguish "no data at all" (degrade to mock in dev) from a genuinely
+    // quiet window when we do hold recent news for this asset.
+    const hasRecent = await RawDocument.exists({
+      primary_asset: assetConfig.symbol,
+      source_type: "news",
+      published_at: { $gte: new Date(Date.now() - RECENT_MS) },
+      ...qualityFilter
+    });
+    if (hasRecent) {
+      return { asset: assetConfig.symbol, range, points: [], data_source: DATA_SOURCE.LIVE };
+    }
+    return degrade();
+  }
+
+  const points = rows.map((r) => ({
+    timestamp: new Date(r._id).toISOString(),
+    sentiment_avg: Number(r.sentiment_avg.toFixed(4)),
+    sentiment_percent: toPercent(r.sentiment_avg),
+    count: r.count
+  }));
 
   return {
     asset: assetConfig.symbol,
     range,
-    points: points.map((p) => ({
-      ...p,
-      sentiment_percent: Math.round(((p.sentiment_avg + 1) / 2) * 100)
-    })),
-    data_source: DATA_SOURCE.LIVE
+    points,
+    data_source: publishedFreshness([{ published_at: points[points.length - 1].timestamp }])
   };
+};
+
+/**
+ * Robust sentiment change over the window: mean of the second half minus the
+ * first half, in percentage points. Uses news + social + forum (news alone is
+ * often too sparse for equities on the free tier). Returns null without enough
+ * real data on both sides of the split.
+ */
+const getSentimentChange = async (asset = "BTC", range = "1h") => {
+  const symbol = normalizeAsset(asset).symbol;
+  if (!isMongoReady()) return null;
+
+  const minutes = toMinutes(range);
+  const since = new Date(Date.now() - minutes * 60 * 1000);
+
+  const docs = await RawDocument.find({
+    primary_asset: symbol,
+    source_type: { $in: ["news", "social", "forum"] },
+    published_at: { $gte: since },
+    ...qualityFilter
+  })
+    .select("published_at sentiment.score")
+    .sort({ published_at: 1 })
+    .lean();
+
+  if (docs.length < 4) return null;
+
+  // Split at the median document time (news clusters — a fixed window midpoint
+  // often leaves one side empty).
+  const mean = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const half = Math.floor(docs.length / 2);
+  const early = docs.slice(0, half).map((d) => d.sentiment?.score ?? 0);
+  const late = docs.slice(half).map((d) => d.sentiment?.score ?? 0);
+
+  return Number((toPercent(mean(late)) - toPercent(mean(early))).toFixed(2));
 };
 
 /** Recent structured events for one asset (SEC filings; LLM-classified news in M3). */
@@ -228,6 +273,7 @@ const getRecentEvents = async (asset = "BTC", limit = 5) => {
 module.exports = {
   getLatestSentiment,
   getSentimentTrend,
+  getSentimentChange,
   getSocialSentiment,
   getRecentEvents,
   toMinutes

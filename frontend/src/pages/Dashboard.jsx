@@ -42,7 +42,7 @@ const fallbackAssets = [
 const Dashboard = () => {
   const [assets, setAssets] = useState(fallbackAssets);
   const [asset, setAsset] = useState("BTC");
-  const [range, setRange] = useState("1h");
+  const [range, setRange] = useState("24h");
   const [sentiment, setSentiment] = useState(null);
   const [trend, setTrend] = useState([]);
   const [trendSource, setTrendSource] = useState(null);

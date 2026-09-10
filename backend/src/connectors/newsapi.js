@@ -17,9 +17,15 @@ const newsapiConnector = {
   async fetch({ asset, limit = 20 }) {
     if (!env.NEWS_API_KEY) return [];
 
+    // NewsAPI's free plan lags ~24h and can return month-old articles — floor
+    // the request at 3 days and drop anything older client-side. The freshness
+    // of what comes back is reflected in `data_source` downstream.
+    const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
     const params = new URLSearchParams({
       q: asset.query,
       language: "en",
+      from: from.toISOString(),
       pageSize: String(Math.min(limit, 100)),
       sortBy: "publishedAt",
       apiKey: env.NEWS_API_KEY
@@ -27,9 +33,10 @@ const newsapiConnector = {
 
     const res = await client.get(`https://newsapi.org/v2/everything?${params.toString()}`);
     const articles = res.data?.articles || [];
+    const fromMs = from.getTime();
 
     return articles
-      .filter((a) => a.title)
+      .filter((a) => a.title && (!a.publishedAt || new Date(a.publishedAt).getTime() >= fromMs))
       .map((a) => ({
         text: a.title,
         title: a.title,

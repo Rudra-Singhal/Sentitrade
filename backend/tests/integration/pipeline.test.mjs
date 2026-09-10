@@ -150,16 +150,18 @@ describe("newsService reads from RawDocument", () => {
     expect(["positive", "neutral", "negative"]).toContain(snap.sentiment_label);
   });
 
-  it("labels stale-ingest docs 'cached'", async () => {
+  it("labels day-old news 'delayed' (freshness follows publish time, not fetch time)", async () => {
     await RawDocument.create({
       source: "newsapi",
       source_type: "news",
       dedupe_key: `stale-${Math.random()}`,
-      text: "An old but real headline about SOL",
+      text: "Solana ecosystem funding improves as on-chain activity climbs",
+      title: "Solana ecosystem funding improves as on-chain activity climbs",
       primary_asset: "SOL",
       assets: ["SOL"],
-      published_at: new Date(Date.now() - 30 * 60000),
-      ingested_at: new Date(Date.now() - 30 * 60000), // > 10min ago
+      relevance: 0.7,
+      published_at: new Date(Date.now() - 5 * 60 * 60 * 1000), // 5h old
+      ingested_at: new Date(),
       sentiment: {
         score: 0.1,
         label: "neutral",
@@ -170,7 +172,7 @@ describe("newsService reads from RawDocument", () => {
     });
 
     const snap = await getLatestSentiment("SOL", 10, false);
-    expect(snap.data_source).toBe("cached");
+    expect(snap.data_source).toBe("delayed");
   });
 
   it("aggregates social posts separately from news, with a bull/bear ratio", async () => {

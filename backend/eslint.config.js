@@ -3,7 +3,7 @@ const n = require("eslint-plugin-n");
 const prettier = require("eslint-config-prettier");
 
 module.exports = [
-  { ignores: ["node_modules/**", "coverage/**"] },
+  { ignores: ["node_modules/**", "coverage/**", "_*.mjs"] },
   js.configs.recommended,
   n.configs["flat/recommended-script"],
   prettier,
