@@ -8,7 +8,7 @@ module.exports = defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.js"],
-      exclude: ["src/app.js"],
+      exclude: ["src/server.js"],
       reporter: ["text", "lcov"]
     }
   }

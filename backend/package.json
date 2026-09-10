@@ -2,10 +2,10 @@
   "name": "sentitrade-backend",
   "version": "1.0.0",
   "description": "Realtime crypto and stock sentiment API with price correlation insights.",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/app.js",
-    "start": "node src/app.js",
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -17,6 +17,7 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
+    "@sentry/node": "^10.74.0",
     "axios": "^1.7.9",
     "axios-retry": "^4.5.0",
     "compression": "^1.8.1",
