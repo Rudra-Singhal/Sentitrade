@@ -1,19 +1,31 @@
 # SentiTrade
 
-A production-grade hackathon project that compares real-time market price action with news-based sentiment for crypto and stock assets.
+An **educational** dashboard that puts news-headline sentiment next to price movement for a
+single crypto or stock asset, and describes whether the two moved together this window.
 
-The app shows a live TradingView chart, headline sentiment, sentiment trend, a BUY/SELL/HOLD signal, clear market metrics, alerts, and a correlation insight that explains whether sentiment and price are moving together or diverging.
+> ⚠️ **Not investment advice. Not a price predictor. Not backtested.** The BUY / SELL / HOLD
+> label is a transparent rule-based illustration. See [METHODOLOGY.md](./METHODOLOGY.md) for
+> exactly how every number is produced and what this project does *not* do. The full technical
+> audit is in [AUDIT.md](./AUDIT.md); the v2 plan is in [V2_ROADMAP.md](./V2_ROADMAP.md).
+
+The app shows a live TradingView chart, headline sentiment, a sentiment trend, clear market
+metrics, threshold alerts, an illustrative BUY / SELL / HOLD label, and a "sentiment vs price"
+panel that describes co-movement over the selected window (not a statistical correlation).
+
+Every value carries a `data_source` badge (`live` / `cached` / `delayed` / `simulated` /
+`unavailable`). Simulated demo data is shown only outside production and is always badged;
+in production, missing data renders as "—" and is never faked.
 
 ## What It Solves
 
 Traders often watch price charts and news separately. This dashboard brings both signals into one screen:
 
-- Price: live TradingView chart for BTC, ETH, and AAPL.
-- Sentiment: NewsAPI headlines analyzed with Vader Sentiment.
-- Trend: average sentiment aggregated over time.
-- Correlation: compares sentiment movement with price movement.
-- Signal: converts sentiment, headline mix, momentum, price movement, and correlation into BUY, SELL, or HOLD.
-- Real time: Socket.io pushes refreshed sentiment and correlation data every 30 seconds.
+- Price: live TradingView chart.
+- Sentiment: NewsAPI headlines scored with VADER (a general-purpose model — see METHODOLOGY.md for why that is a known limitation).
+- Trend: average headline sentiment aggregated over time.
+- Sentiment vs price: describes whether news tone and price moved the same way this window. This is co-movement of two endpoints, not a predictive correlation.
+- Illustrative signal: a transparent rule engine turns news tone, headline mix, sentiment change, and price change into a BUY / SELL / HOLD label with a qualitative strength (weak / moderate / strong alignment — **not** a probability).
+- Real time: Socket.io pushes a refreshed snapshot every 30 seconds.
 
 ## Tech Stack
 
@@ -27,8 +39,10 @@ Traders often watch price charts and news separately. This dashboard brings both
 | Realtime | Socket.io |
 | News | NewsAPI |
 | Sentiment | vader-sentiment |
-| Price UI | TradingView widget |
-| Price correlation | CoinGecko for crypto, mock fallback for demo stability |
+| Price UI | TradingView widget (always live) |
+| Backend price | CoinGecko for crypto (opt-in); no stock source yet; `unavailable` otherwise |
+| Observability | pino structured logs, `/api/ready`, `/api/metrics` |
+| Validation | zod (query + socket payloads) |
 
 ## Folder Structure
 
@@ -148,7 +162,7 @@ sequenceDiagram
   Price-->>Corr: price_change %
   Corr-->>API: insight
   API->>Signal: Generate BUY / SELL / HOLD
-  Signal-->>API: signal, confidence, reasons
+  Signal-->>API: signal, strength, reasons
   API-->>UI: news, score, label, signal, summary
 ```
 
@@ -250,8 +264,8 @@ flowchart TD
   Price["Price series"] --> PriceDelta["Calculate price_change %"]
   SentDelta --> Compare["Compare movement direction"]
   PriceDelta --> Compare
-  Compare --> Positive["Positive correlation detected"]
-  Compare --> Negative["Negative correlation detected"]
+  Compare --> Positive["Sentiment and price moved together"]
+  Compare --> Negative["Sentiment and price diverged"]
   Compare --> Sideways["Sentiment and price are moving sideways"]
 ```
 
@@ -264,9 +278,15 @@ Example response:
   "sentiment_change": 20,
   "price_change": 2.5,
   "current_price": 67350,
-  "insight": "Positive correlation detected"
+  "insight": "Sentiment and price moved in the same direction this window.",
+  "note": "Describes co-movement this window. Not a predictive correlation.",
+  "data_source": "live"
 }
 ```
+
+This compares the start and end of the window only. It is **not** a correlation coefficient and
+carries no predictive meaning. A real rolling correlation (`r`, sample size, confidence
+interval, lead/lag) is planned — see V2_ROADMAP.md.
 
 ## Signal Engine
 
@@ -302,18 +322,23 @@ Signal response:
 {
   "signal": "BUY",
   "tone": "bullish",
-  "confidence": 77,
+  "strength": "moderate",
   "score": 4,
   "reasons": [
-    "Overall sentiment is constructive at 63%.",
-    "65% of recent headlines are positive.",
-    "Sentiment momentum improved by 8 points."
+    "Overall news tone is constructive at 63%.",
+    "65% of recent headlines read positive.",
+    "News tone improved by 8 points this window."
   ],
-  "disclaimer": "Educational signal only. Not financial advice."
+  "data_source": "live",
+  "price_considered": true,
+  "disclaimer": "Educational tool only. Not investment advice and not a recommendation to buy or sell any asset. Signals are illustrative and have not been backtested."
 }
 ```
 
-This is intentionally rule-based and transparent. It is not a financial prediction model.
+`strength` (weak / moderate / strong alignment) reflects the magnitude of the rule score only.
+It is **not** a probability and **not** a confidence that the call is correct — there is no
+backtest behind it (yet — see V2_ROADMAP.md). If live data is insufficient the label is forced
+to `HOLD`. This is intentionally rule-based and transparent; it is not a prediction model.
 
 ## Frontend UI
 
@@ -341,7 +366,7 @@ The previous color-grid panel has been replaced with a clearer metrics panel. It
 - Sentiment Move: movement between the first and latest sentiment trend point.
 - Price Move: backend correlation price movement over the selected time range.
 - Headline Mix: simple distribution bar for positive, neutral, and negative headlines.
-- Trade Signal: BUY, SELL, or HOLD with confidence and reasons.
+- Illustrative signal: BUY, SELL, or HOLD with a qualitative strength and reasons.
 
 This is easier to explain in a demo because every number has a direct label and business meaning.
 
@@ -350,13 +375,9 @@ This is easier to explain in a demo because every number has a direct label and 
 ### Health
 
 ```http
-GET /api/health
-```
-
-Returns:
-
-```text
-Server running
+GET /api/health   # liveness — process is up
+GET /api/ready    # readiness — DB connected, data pipeline healthy (503 if degraded)
+GET /api/metrics  # in-process counters (fetch outcomes, suppressed-simulated count, ...)
 ```
 
 ### Assets
@@ -458,14 +479,16 @@ cp .env.example .env
 
 ## Environment Variables
 
-Backend `.env`:
+Backend `.env` (see `backend/.env.example`):
 
 ```bash
+NODE_ENV=development
 PORT=3000
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sentiment-dashboard
 NEWS_API_KEY=your_newsapi_key
 ENABLE_LIVE_PRICE_API=false
+LOG_LEVEL=info
 ```
 
 Frontend `.env`:
@@ -475,7 +498,10 @@ VITE_API_URL=http://localhost:3000/api
 VITE_SOCKET_URL=http://localhost:3000
 ```
 
-If `MONGODB_URI` or `NEWS_API_KEY` are empty, the backend uses mock demo data. This keeps the dashboard usable during judging, demos, and offline development.
+In **development only**, if `MONGODB_URI` or `NEWS_API_KEY` are empty the backend serves
+synthetic demo data, clearly badged `simulated` in the UI. In **production** (`NODE_ENV=production`)
+the server refuses to start without `MONGODB_URI` and a client URL, and never substitutes
+synthetic data — unavailable values are returned as `unavailable` and shown as "—".
 
 `ENABLE_LIVE_PRICE_API` is false by default because the UI already uses TradingView for live price and the backend correlation can use stable mock series. Set it to `true` if you want backend crypto correlation to call CoinGecko directly.
 
@@ -500,6 +526,21 @@ Open:
 ```text
 http://localhost:5173
 ```
+
+Vite also prints a Network URL such as:
+
+```text
+http://10.10.2.152:5173
+```
+
+In development, SentiTrade automatically points API and Socket.io traffic to the same host on port `3000`. For example, opening `http://10.10.2.152:5173` calls:
+
+```text
+http://10.10.2.152:3000/api
+ws://10.10.2.152:3000
+```
+
+The backend CORS policy allows localhost and private-network Vite origins only in development. Production still uses the explicit `CLIENT_URL` / `FRONTEND_URL` allowlist.
 
 The default local backend port is `3000`. If you use another backend port, update both frontend values together:
 
@@ -573,7 +614,7 @@ RATE_LIMIT_PER_MINUTE=120
 6. Health check path:
 
 ```text
-/api/health
+/api/ready
 ```
 
 7. Deploy and copy the backend URL. It will look like:

@@ -1,15 +1,35 @@
 import Card from "./Card.jsx";
 
+// Maps each asset symbol to its TradingView symbol string
 const symbolMap = {
+  // Crypto
   BTC: "BINANCE:BTCUSDT",
   ETH: "BINANCE:ETHUSDT",
-  AAPL: "NASDAQ:AAPL"
+  SOL: "BINANCE:SOLUSDT",
+  BNB: "BINANCE:BNBUSDT",
+  XRP: "BINANCE:XRPUSDT",
+  // Stocks
+  AAPL: "NASDAQ:AAPL",
+  MSFT: "NASDAQ:MSFT",
+  GOOGL: "NASDAQ:GOOGL",
+  AMZN: "NASDAQ:AMZN",
+  NVDA: "NASDAQ:NVDA",
+  META: "NASDAQ:META",
+  TSLA: "NASDAQ:TSLA",
+  NFLX: "NASDAQ:NFLX",
+  AMD:  "NASDAQ:AMD",
+  INTC: "NASDAQ:INTC",
+  JPM:  "NYSE:JPM",
+  V:    "NYSE:V",
+  DIS:  "NYSE:DIS",
+  PYPL: "NASDAQ:PYPL",
+  UBER: "NYSE:UBER"
 };
 
 const TradingViewWidget = ({ asset = "BTC" }) => {
   const widgetConfig = {
     autosize: true,
-    symbol: symbolMap[asset] || symbolMap.BTC,
+    symbol: symbolMap[asset] || `NASDAQ:${asset}`,
     interval: "15",
     timezone: "Etc/UTC",
     theme: "dark",
