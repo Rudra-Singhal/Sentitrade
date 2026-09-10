@@ -3,11 +3,12 @@ const RawDocument = require("../models/RawDocument");
 const { normalizeAsset } = require("./assetService");
 const { averageSentiment } = require("./sentimentService");
 const { makeMockNews, makeMockTrend } = require("./mockDataService");
-const { ingestAsset } = require("../pipeline/ingest");
-const logger = require("../config/logger");
-const { errInfo } = logger;
 const { syntheticOrNull } = require("../lib/fallback");
 const { DATA_SOURCE } = require("../lib/dataSource");
+
+// A read is "live" if the freshest stored document was ingested within this
+// window (the scheduler polls every 120s). Older -> "cached".
+const LIVE_FRESHNESS_MS = 10 * 60 * 1000;
 
 const isMongoReady = () => mongoose.connection.readyState === 1;
 
@@ -38,33 +39,32 @@ const toItem = (doc) => ({
   timestamp: doc.published_at
 });
 
-const readNewsItems = async (symbol, limit) =>
+const readNewsDocs = async (symbol, limit) =>
   RawDocument.find({ primary_asset: symbol, source_type: "news" })
     .sort({ published_at: -1 })
     .limit(Number(limit))
-    .lean()
-    .then((docs) => docs.map(toItem));
+    .lean();
 
-const getLatestSentiment = async (asset = "BTC", limit = 20, refresh = true) => {
+// Reads never ingest — the scheduler keeps RawDocument fresh. `refresh` is
+// accepted for backwards compatibility but ignored.
+const getLatestSentiment = async (asset = "BTC", limit = 20, _refresh = true) => {
   const assetConfig = normalizeAsset(asset);
   const symbol = assetConfig.symbol;
 
   let dataSource = DATA_SOURCE.UNAVAILABLE;
   let items = [];
-  let fetchedFresh = false;
-
-  if (refresh && isMongoReady()) {
-    try {
-      const result = await ingestAsset(symbol, { limit, types: ["news"] });
-      fetchedFresh = result.fetchedAny;
-    } catch (err) {
-      logger.warn({ asset: symbol, err: errInfo(err) }, "ingest during read failed");
-    }
-  }
 
   if (isMongoReady()) {
-    items = await readNewsItems(symbol, limit);
-    if (items.length) dataSource = fetchedFresh ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
+    const docs = await readNewsDocs(symbol, limit);
+    items = docs.map(toItem);
+    if (items.length) {
+      const freshestIngest = docs.reduce(
+        (max, d) => Math.max(max, d.ingested_at ? new Date(d.ingested_at).getTime() : 0),
+        0
+      );
+      dataSource =
+        Date.now() - freshestIngest < LIVE_FRESHNESS_MS ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
+    }
   }
 
   if (!items.length) {

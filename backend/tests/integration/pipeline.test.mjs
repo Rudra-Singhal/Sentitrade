@@ -77,7 +77,7 @@ describe("ingestAsset", () => {
 });
 
 describe("newsService reads from RawDocument", () => {
-  it("labels stored docs 'cached' when not refreshed and maps item fields", async () => {
+  it("labels freshly-ingested docs 'live' and maps item fields", async () => {
     await ingestAsset("ETH", {
       limit: 10,
       connectors: [
@@ -86,11 +86,34 @@ describe("newsService reads from RawDocument", () => {
     });
 
     const snap = await getLatestSentiment("ETH", 10, false);
-    expect(snap.data_source).toBe("cached");
+    expect(snap.data_source).toBe("live"); // ingested_at is ~now
     expect(snap.items).toHaveLength(1);
     expect(snap.items[0]).toMatchObject({ asset: "ETH", source: "CoinDesk" });
     expect(snap.as_of).toBeTruthy();
     expect(["positive", "neutral", "negative"]).toContain(snap.sentiment_label);
+  });
+
+  it("labels stale-ingest docs 'cached'", async () => {
+    await RawDocument.create({
+      source: "newsapi",
+      source_type: "news",
+      dedupe_key: `stale-${Math.random()}`,
+      text: "An old but real headline about SOL",
+      primary_asset: "SOL",
+      assets: ["SOL"],
+      published_at: new Date(Date.now() - 30 * 60000),
+      ingested_at: new Date(Date.now() - 30 * 60000), // > 10min ago
+      sentiment: {
+        score: 0.1,
+        label: "neutral",
+        model: "vader",
+        model_version: "x",
+        scored_at: new Date()
+      }
+    });
+
+    const snap = await getLatestSentiment("SOL", 10, false);
+    expect(snap.data_source).toBe("cached");
   });
 
   it("builds a minute-bucketed trend and ignores docs outside the window", async () => {

@@ -14,6 +14,7 @@ const pinoHttp = require("pino-http");
 const connectDB = require("./config/db");
 const { corsOptions } = require("./config/cors");
 const initSocket = require("./services/socketService");
+const { startScheduler, stopScheduler } = require("./jobs/scheduler");
 const healthRoutes = require("./routes/healthRoutes");
 const sentimentRoutes = require("./routes/sentimentRoutes");
 const correlationRoutes = require("./routes/correlationRoutes");
@@ -83,6 +84,7 @@ let io;
 const start = async () => {
   await connectDB();
   io = initSocket(server);
+  startScheduler();
   server.listen(env.PORT, () =>
     logger.info({ port: env.PORT, env: env.NODE_ENV }, "server listening")
   );
@@ -104,7 +106,11 @@ const shutdown = async (signal) => {
   force.unref();
 
   try {
-    if (io) await io.close();
+    stopScheduler();
+    if (io) {
+      io.stopBroadcast?.();
+      await io.close();
+    }
     server.close();
     if (mongoose.connection.readyState !== 0) await mongoose.connection.close(false);
     clearTimeout(force);

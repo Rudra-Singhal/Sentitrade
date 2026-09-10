@@ -1,21 +1,10 @@
-const { getLatestSentiment, getSentimentTrend } = require("../services/newsService");
-const { getCorrelationInsight } = require("../services/correlationService");
-const { createMarketSummary } = require("../services/summaryService");
-const { generateTradeSignal } = require("../services/signalService");
+const { getSentimentTrend } = require("../services/newsService");
+const { getSnapshot } = require("../services/snapshotService");
 
 const getSentiment = async (req, res) => {
-  const { asset, range, limit, refresh } = req.validatedQuery;
-
-  const snapshot = await getLatestSentiment(asset, limit, refresh);
-  const correlation = await getCorrelationInsight(snapshot.asset, range);
-  const signal = generateTradeSignal({ sentiment: snapshot, correlation });
-
-  res.json({
-    ...snapshot,
-    signal,
-    correlation_data_source: correlation.data_source,
-    summary: createMarketSummary({ sentiment: snapshot, correlation })
-  });
+  const { asset, range } = req.validatedQuery;
+  const snap = await getSnapshot(asset, range);
+  res.json({ ...snap.sentiment, correlation_data_source: snap.correlation.data_source });
 };
 
 const getTrend = async (req, res) => {
