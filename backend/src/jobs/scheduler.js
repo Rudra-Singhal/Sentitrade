@@ -29,7 +29,7 @@ const runNewsIngest = async () => {
           try {
             const result = await ingestAsset(asset, {
               limit: 30,
-              types: ["news", "social", "forum"]
+              types: ["news", "social", "forum", "filing"]
             });
             if (result.fetchedAny) lastIngestAt.set(asset, new Date().toISOString());
             metrics.inc(`scheduler_ingest_total:${asset}`);
@@ -52,7 +52,10 @@ const runNewsIngest = async () => {
 const ingestNow = async (asset) => {
   if (mongoose.connection.readyState !== 1) return;
   try {
-    const result = await ingestAsset(asset, { limit: 30, types: ["news", "social", "forum"] });
+    const result = await ingestAsset(asset, {
+      limit: 30,
+      types: ["news", "social", "forum", "filing"]
+    });
     if (result.fetchedAny) lastIngestAt.set(String(asset).toUpperCase(), new Date().toISOString());
   } catch (err) {
     logger.warn({ asset, err: errInfo(err) }, "on-demand ingest failed");

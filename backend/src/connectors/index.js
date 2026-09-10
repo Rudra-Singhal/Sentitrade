@@ -3,11 +3,12 @@ const finnhub = require("./finnhub");
 const rss = require("./rss");
 const stocktwits = require("./stocktwits");
 const reddit = require("./reddit");
+const edgar = require("./edgar");
 
 // Registry of every source connector. Add a module here and the pipeline,
 // scheduler and serving layers pick it up with no further changes.
-// M2 adds stocktwits (social) + reddit (forum); edgar next.
-const ALL = [newsapi, finnhub, rss, stocktwits, reddit];
+// M2 adds stocktwits (social) + reddit (forum) + edgar (filing).
+const ALL = [newsapi, finnhub, rss, stocktwits, reddit, edgar];
 
 /** Connectors that are enabled (env-configured) and match the given source types. */
 const enabledConnectors = (types) =>

@@ -201,4 +201,34 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
   };
 };
 
-module.exports = { getLatestSentiment, getSentimentTrend, getSocialSentiment, toMinutes };
+/** Recent structured events for one asset (SEC filings; LLM-classified news in M3). */
+const getRecentEvents = async (asset = "BTC", limit = 5) => {
+  const symbol = normalizeAsset(asset).symbol;
+  if (!isMongoReady()) return [];
+
+  const docs = await RawDocument.find({
+    primary_asset: symbol,
+    "event.type": { $ne: null },
+    published_at: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+  })
+    .sort({ published_at: -1 })
+    .limit(limit)
+    .lean();
+
+  return docs.map((d) => ({
+    type: d.event.type,
+    impact: d.event.impact,
+    source: d.source,
+    title: d.title,
+    url: d.url,
+    at: d.published_at
+  }));
+};
+
+module.exports = {
+  getLatestSentiment,
+  getSentimentTrend,
+  getSocialSentiment,
+  getRecentEvents,
+  toMinutes
+};

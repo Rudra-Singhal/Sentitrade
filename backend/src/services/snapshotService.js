@@ -1,4 +1,4 @@
-const { getLatestSentiment, getSocialSentiment } = require("./newsService");
+const { getLatestSentiment, getSocialSentiment, getRecentEvents } = require("./newsService");
 const { getCorrelationInsight } = require("./correlationService");
 const { createMarketSummary } = require("./summaryService");
 const { generateTradeSignal } = require("./signalService");
@@ -8,9 +8,10 @@ const CACHE_MS = 15_000;
 const cache = new Map(); // `${asset}:${range}` -> { at, snapshot }
 
 const compute = async (asset, range) => {
-  const [sentiment, social] = await Promise.all([
+  const [sentiment, social, events] = await Promise.all([
     getLatestSentiment(asset, 20, false),
-    getSocialSentiment(asset)
+    getSocialSentiment(asset),
+    getRecentEvents(asset)
   ]);
   const correlation = await getCorrelationInsight(sentiment.asset, range);
   const signal = generateTradeSignal({ sentiment, correlation });
@@ -26,6 +27,7 @@ const compute = async (asset, range) => {
       signal,
       summary: createMarketSummary({ sentiment, correlation }),
       social,
+      events,
       news_retail_divergence: divergence
     },
     correlation: { ...correlation, signal }

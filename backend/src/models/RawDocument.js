@@ -62,6 +62,13 @@ const rawDocumentSchema = new mongoose.Schema(
     // 0..1 — how much this document is actually about `primary_asset`.
     relevance: { type: Number, default: null },
 
+    // Structured event (SEC filings now; LLM-classified news/social in M3).
+    event: {
+      type: { type: String, default: null }, // earnings | executive_change | m&a | regulatory | ...
+      impact: { type: Number, default: null }, // 0..1
+      detail: { type: String, default: null }
+    },
+
     engagement: {
       likes: { type: Number, default: null },
       shares: { type: Number, default: null },

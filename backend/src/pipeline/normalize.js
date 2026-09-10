@@ -64,6 +64,13 @@ const normalize = (connector, assetSymbol, doc) => {
     assets: resolvedSymbols,
     entities,
     relevance: doc.relevance ?? primaryRelevance,
+    event: doc.event
+      ? {
+          type: doc.event.type ?? null,
+          impact: doc.event.impact ?? null,
+          detail: doc.event.detail ?? null
+        }
+      : { type: null, impact: null, detail: null },
     source_weight: weightForSource(doc.provider_meta?.source_name || connector.id),
     engagement: {
       likes: doc.engagement?.likes ?? null,
