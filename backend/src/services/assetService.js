@@ -68,7 +68,7 @@ const ASSETS = {
     tradingViewSymbol: "NASDAQ:MSFT",
     type: "stock",
     mockBase: 415,
-    mockVolatility: 0.010
+    mockVolatility: 0.01
   },
   GOOGL: {
     symbol: "GOOGL",
@@ -131,7 +131,7 @@ const ASSETS = {
     tradingViewSymbol: "NASDAQ:AMD",
     type: "stock",
     mockBase: 170,
-    mockVolatility: 0.020
+    mockVolatility: 0.02
   },
   INTC: {
     symbol: "INTC",

@@ -64,7 +64,11 @@ const getPriceSeries = async (asset = "BTC", range = "1h") => {
   );
 
   if (mock) {
-    priceCache.set(cacheKey, { timestamp: Date.now(), series: mock, price_source: DATA_SOURCE.SIMULATED });
+    priceCache.set(cacheKey, {
+      timestamp: Date.now(),
+      series: mock,
+      price_source: DATA_SOURCE.SIMULATED
+    });
     return { series: mock, price_source: DATA_SOURCE.SIMULATED };
   }
 
@@ -75,7 +79,12 @@ const getPriceChange = async (asset = "BTC", range = "1h") => {
   const { series, price_source } = await getPriceSeries(asset, range);
 
   if (series.length < 2) {
-    return { series: [], current_price: null, price_change: null, price_source: DATA_SOURCE.UNAVAILABLE };
+    return {
+      series: [],
+      current_price: null,
+      price_change: null,
+      price_source: DATA_SOURCE.UNAVAILABLE
+    };
   }
 
   const first = series[0]?.price || 0;

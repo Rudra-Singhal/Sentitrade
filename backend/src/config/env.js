@@ -11,9 +11,7 @@ const schema = z.object({
   NEWS_API_KEY: z.string().optional(),
   ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("false"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
-  LOG_LEVEL: z
-    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
-    .default("info")
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
 });
 
 const parsed = schema.safeParse(process.env);
@@ -38,9 +36,7 @@ if (isProd) {
   if (!env.CLIENT_URL && !env.FRONTEND_URL) missing.push("CLIENT_URL or FRONTEND_URL");
 
   if (missing.length) {
-    console.error(
-      `Missing required production environment variables: ${missing.join(", ")}`
-    );
+    console.error(`Missing required production environment variables: ${missing.join(", ")}`);
     process.exit(1);
   }
 }

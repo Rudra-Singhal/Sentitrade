@@ -26,7 +26,10 @@ const logger = pino({
   redact,
   base: { env: env.NODE_ENV },
   transport: isDev
-    ? { target: "pino-pretty", options: { colorize: true, translateTime: "SYS:standard", ignore: "pid,hostname,env" } }
+    ? {
+        target: "pino-pretty",
+        options: { colorize: true, translateTime: "SYS:standard", ignore: "pid,hostname,env" }
+      }
     : undefined
 });
 

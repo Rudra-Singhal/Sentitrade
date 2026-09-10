@@ -45,7 +45,12 @@ app.use(
 );
 
 app.get("/", (_req, res) => {
-  res.json({ name: "SentiTrade API", status: "running", health: "/api/health", ready: "/api/ready" });
+  res.json({
+    name: "SentiTrade API",
+    status: "running",
+    health: "/api/health",
+    ready: "/api/ready"
+  });
 });
 
 app.use("/api", healthRoutes);
@@ -57,7 +62,6 @@ app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// eslint-disable-next-line no-unused-vars
 app.use((error, _req, res, _next) => {
   const isCors = error.message?.startsWith("CORS blocked");
   const status = isCors ? 403 : error.status || 500;
@@ -79,7 +83,9 @@ let io;
 const start = async () => {
   await connectDB();
   io = initSocket(server);
-  server.listen(env.PORT, () => logger.info({ port: env.PORT, env: env.NODE_ENV }, "server listening"));
+  server.listen(env.PORT, () =>
+    logger.info({ port: env.PORT, env: env.NODE_ENV }, "server listening")
+  );
 };
 
 start();
@@ -112,7 +118,9 @@ const shutdown = async (signal) => {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("unhandledRejection", (reason) => logger.error({ err: errInfo(reason) }, "unhandledRejection"));
+process.on("unhandledRejection", (reason) =>
+  logger.error({ err: errInfo(reason) }, "unhandledRejection")
+);
 process.on("uncaughtException", (err) => {
   logger.fatal({ err: errInfo(err) }, "uncaughtException");
   shutdown("uncaughtException");
