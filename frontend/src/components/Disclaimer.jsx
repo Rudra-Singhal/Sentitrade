@@ -1,7 +1,6 @@
 import { Info } from "lucide-react";
 
-const METHODOLOGY_URL =
-  "https://github.com/Rudra-Singhal/Sentitrade/blob/main/METHODOLOGY.md";
+const METHODOLOGY_URL = "https://github.com/Rudra-Singhal/Sentitrade/blob/main/METHODOLOGY.md";
 
 const Disclaimer = ({ variant = "full" }) => {
   if (variant === "inline") {
@@ -18,7 +17,9 @@ const Disclaimer = ({ variant = "full" }) => {
       <div className="flex items-start gap-2">
         <Info size={14} className="mt-0.5 shrink-0 text-slate-500" />
         <p>
-          <span className="font-semibold text-slate-300">SentiTrade is an educational project.</span>{" "}
+          <span className="font-semibold text-slate-300">
+            SentiTrade is an educational project.
+          </span>{" "}
           It compares news sentiment with price movement to describe current conditions. It does{" "}
           <span className="font-semibold text-slate-300">not</span> predict prices, is{" "}
           <span className="font-semibold text-slate-300">not</span> investment advice, and makes no

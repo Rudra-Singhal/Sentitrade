@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Wifi, WifiOff, Loader2 } from "lucide-react";
 import AssetSelector from "../components/AssetSelector.jsx";
 import TimeFilter from "../components/TimeFilter.jsx";
@@ -16,28 +16,26 @@ import { createSocket } from "../services/socket.js";
 import { worstSource } from "../lib/dataSource.js";
 
 const fallbackAssets = [
-  // Crypto
-  { symbol: "BTC",  displayName: "Bitcoin",   type: "crypto" },
-  { symbol: "ETH",  displayName: "Ethereum",  type: "crypto" },
-  { symbol: "SOL",  displayName: "Solana",    type: "crypto" },
-  { symbol: "BNB",  displayName: "BNB",       type: "crypto" },
-  { symbol: "XRP",  displayName: "XRP",       type: "crypto" },
-  // Stocks
-  { symbol: "AAPL", displayName: "Apple",     type: "stock" },
+  { symbol: "BTC", displayName: "Bitcoin", type: "crypto" },
+  { symbol: "ETH", displayName: "Ethereum", type: "crypto" },
+  { symbol: "SOL", displayName: "Solana", type: "crypto" },
+  { symbol: "BNB", displayName: "BNB", type: "crypto" },
+  { symbol: "XRP", displayName: "XRP", type: "crypto" },
+  { symbol: "AAPL", displayName: "Apple", type: "stock" },
   { symbol: "MSFT", displayName: "Microsoft", type: "stock" },
-  { symbol: "GOOGL",displayName: "Alphabet",  type: "stock" },
-  { symbol: "AMZN", displayName: "Amazon",    type: "stock" },
-  { symbol: "NVDA", displayName: "NVIDIA",    type: "stock" },
-  { symbol: "META", displayName: "Meta",      type: "stock" },
-  { symbol: "TSLA", displayName: "Tesla",     type: "stock" },
-  { symbol: "NFLX", displayName: "Netflix",   type: "stock" },
-  { symbol: "AMD",  displayName: "AMD",       type: "stock" },
-  { symbol: "INTC", displayName: "Intel",     type: "stock" },
-  { symbol: "JPM",  displayName: "JPMorgan",  type: "stock" },
-  { symbol: "V",    displayName: "Visa",      type: "stock" },
-  { symbol: "DIS",  displayName: "Disney",    type: "stock" },
-  { symbol: "PYPL", displayName: "PayPal",    type: "stock" },
-  { symbol: "UBER", displayName: "Uber",      type: "stock" }
+  { symbol: "GOOGL", displayName: "Alphabet", type: "stock" },
+  { symbol: "AMZN", displayName: "Amazon", type: "stock" },
+  { symbol: "NVDA", displayName: "NVIDIA", type: "stock" },
+  { symbol: "META", displayName: "Meta", type: "stock" },
+  { symbol: "TSLA", displayName: "Tesla", type: "stock" },
+  { symbol: "NFLX", displayName: "Netflix", type: "stock" },
+  { symbol: "AMD", displayName: "AMD", type: "stock" },
+  { symbol: "INTC", displayName: "Intel", type: "stock" },
+  { symbol: "JPM", displayName: "JPMorgan", type: "stock" },
+  { symbol: "V", displayName: "Visa", type: "stock" },
+  { symbol: "DIS", displayName: "Disney", type: "stock" },
+  { symbol: "PYPL", displayName: "PayPal", type: "stock" },
+  { symbol: "UBER", displayName: "Uber", type: "stock" }
 ];
 
 const Dashboard = () => {
@@ -51,8 +49,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [socketStatus, setSocketStatus] = useState("connecting"); // connecting | live | reconnecting
+
   const socketRef = useRef(null);
-  const liveSelectionRef = useRef({ asset, range });
+  const selectionRef = useRef({ asset, range });
+  useEffect(() => {
+    selectionRef.current = { asset, range };
+  }, [asset, range]);
 
   const selectedAsset = useMemo(
     () => assets.find((item) => item.symbol === asset) || fallbackAssets[0],
@@ -64,17 +66,17 @@ const Dashboard = () => {
     [sentiment?.data_source, correlation?.data_source, trendSource]
   );
 
-  const loadDashboard = async () => {
+  // REST fetch — used only for the very first paint and as a fallback when the
+  // socket is down. Once the socket is live it is the single source of truth.
+  const loadViaRest = useCallback(async (a, r) => {
     setLoading(true);
     setError("");
-
     try {
       const [sentimentData, trendData, correlationData] = await Promise.all([
-        fetchSentiment(asset, range),
-        fetchTrend(asset, range),
-        fetchCorrelation(asset, range)
+        fetchSentiment(a, r),
+        fetchTrend(a, r),
+        fetchCorrelation(a, r)
       ]);
-
       setSentiment(sentimentData);
       setTrend(trendData.points || []);
       setTrendSource(trendData.data_source || null);
@@ -84,55 +86,68 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchAssets().then(setAssets).catch(() => setAssets(fallbackAssets));
   }, []);
 
-  useEffect(() => {
-    liveSelectionRef.current = { asset, range };
-    loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset, range]);
+  const applySnapshot = useCallback((payload, want) => {
+    if (payload?.sentiment?.asset !== want.asset) return;
+    if (payload?.correlation?.range && payload.correlation.range !== want.range) return;
+    setSentiment(payload.sentiment);
+    setCorrelation(payload.correlation);
+    setTrend(payload.correlation?.trend || []);
+    setTrendSource(payload.correlation?.data_source || null);
+    setLoading(false);
+    setError("");
+  }, []);
 
+  const refresh = useCallback(() => {
+    const { asset: a, range: r } = selectionRef.current;
+    if (socketRef.current?.connected)
+      socketRef.current.emit("asset:change", { asset: a, range: r });
+    else loadViaRest(a, r);
+  }, [loadViaRest]);
+
+  // Asset list
+  useEffect(() => {
+    fetchAssets()
+      .then(setAssets)
+      .catch(() => setAssets(fallbackAssets));
+  }, []);
+
+  // First paint
+  useEffect(() => {
+    loadViaRest(asset, range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Socket lifecycle
   useEffect(() => {
     const socket = createSocket();
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setSocketStatus("live");
-      socket.emit("asset:change", liveSelectionRef.current);
+      socket.emit("asset:change", selectionRef.current);
     });
-
     socket.on("disconnect", () => setSocketStatus("reconnecting"));
     socket.io.on("reconnect_attempt", () => setSocketStatus("reconnecting"));
-
-    socket.on("sentiment:update", (payload) => {
-      const sel = liveSelectionRef.current;
-      // Ignore updates for a selection the user has already moved away from.
-      if (payload.sentiment?.asset !== sel.asset) return;
-      if (payload.correlation?.range && payload.correlation.range !== sel.range) return;
-
-      setSentiment(payload.sentiment);
-      setCorrelation(payload.correlation);
-      setTrend(payload.correlation?.trend || []);
-      setTrendSource(payload.correlation?.data_source || null);
-      setLoading(false);
-    });
-
-    socket.on("sentiment:error", (message) => setError(message));
+    socket.on("sentiment:update", (payload) => applySnapshot(payload, selectionRef.current));
+    socket.on("sentiment:error", (message) => setError(String(message)));
 
     return () => {
-      socket.disconnect();
+      socket.close();
       socketRef.current = null;
     };
-  }, []);
+  }, [applySnapshot]);
 
+  // Selection change: prefer the socket; fall back to REST when offline
   useEffect(() => {
     if (socketRef.current?.connected) {
+      setLoading(true);
       socketRef.current.emit("asset:change", { asset, range });
+    } else {
+      loadViaRest(asset, range);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset, range]);
 
   const connectionPill = {
@@ -172,7 +187,7 @@ const Dashboard = () => {
             <TimeFilter value={range} onChange={setRange} />
             <button
               type="button"
-              onClick={loadDashboard}
+              onClick={refresh}
               className="flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:border-white/25 hover:text-white"
               title="Refresh"
             >

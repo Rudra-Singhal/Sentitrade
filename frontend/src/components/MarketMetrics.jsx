@@ -71,16 +71,30 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
   const signal = sentiment?.signal || correlation?.signal;
   const signalStyle = signalStyles[signal?.signal] || signalStyles.HOLD;
   const SignalIcon = signalStyle.icon;
-  const momentumTone = momentum === null ? "info" : momentum > 0 ? "positive" : momentum < 0 ? "negative" : "neutral";
-  const priceTone = priceMove === null ? "info" : priceMove > 0 ? "positive" : priceMove < 0 ? "negative" : "neutral";
+  const momentumTone =
+    momentum === null ? "info" : momentum > 0 ? "positive" : momentum < 0 ? "negative" : "neutral";
+  const priceTone =
+    priceMove === null
+      ? "info"
+      : priceMove > 0
+        ? "positive"
+        : priceMove < 0
+          ? "negative"
+          : "neutral";
 
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Metrics</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Metrics
+          </p>
           <h2 className="mt-1 text-xl font-bold text-white">Market Snapshot</h2>
-          <DataSourceBadge source={sentiment?.data_source} asOf={sentiment?.as_of} className="mt-2" />
+          <DataSourceBadge
+            source={sentiment?.data_source}
+            asOf={sentiment?.as_of}
+            className="mt-2"
+          />
         </div>
       </div>
 
@@ -91,7 +105,9 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
               Illustrative signal
             </p>
             <div className="mt-2 flex flex-wrap items-end gap-3">
-              <p className={`text-4xl font-extrabold ${signalStyle.text}`}>{signal?.signal || "HOLD"}</p>
+              <p className={`text-4xl font-extrabold ${signalStyle.text}`}>
+                {signal?.signal || "HOLD"}
+              </p>
               <p className="pb-1 text-sm font-semibold text-slate-300">
                 {strengthLabel[signal?.strength] || "Weak"} signal alignment
               </p>
@@ -144,8 +160,12 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
 
       <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Headline Mix</p>
-          <p className="text-xs font-semibold text-slate-400">{correlation?.insight || "Waiting for data"}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Headline Mix
+          </p>
+          <p className="text-xs font-semibold text-slate-400">
+            {correlation?.insight || "Waiting for data"}
+          </p>
         </div>
         <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
           <div className="bg-neon" style={{ width: `${stats.positive}%` }} />

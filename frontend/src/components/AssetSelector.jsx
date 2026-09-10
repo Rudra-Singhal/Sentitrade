@@ -17,7 +17,7 @@ const AssetSelector = ({ assets, selected, onChange }) => {
   }, []);
 
   const cryptos = assets.filter((a) => a.type === "crypto");
-  const stocks  = assets.filter((a) => a.type === "stock");
+  const stocks = assets.filter((a) => a.type === "stock");
 
   const Icon = selectedAsset?.type === "crypto" ? Bitcoin : TrendingUp;
 
@@ -60,7 +60,10 @@ const AssetSelector = ({ assets, selected, onChange }) => {
               key={asset.symbol}
               asset={asset}
               active={selected === asset.symbol}
-              onSelect={() => { onChange(asset.symbol); setOpen(false); }}
+              onSelect={() => {
+                onChange(asset.symbol);
+                setOpen(false);
+              }}
             />
           ))}
 
@@ -78,7 +81,10 @@ const AssetSelector = ({ assets, selected, onChange }) => {
               key={asset.symbol}
               asset={asset}
               active={selected === asset.symbol}
-              onSelect={() => { onChange(asset.symbol); setOpen(false); }}
+              onSelect={() => {
+                onChange(asset.symbol);
+                setOpen(false);
+              }}
             />
           ))}
           <div className="h-2" />
@@ -95,9 +101,7 @@ const DropdownItem = ({ asset, active, onSelect }) => {
       type="button"
       onClick={onSelect}
       className={`flex w-full items-center gap-3 px-3 py-2 text-sm transition ${
-        active
-          ? "bg-neon/10 text-neon"
-          : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+        active ? "bg-neon/10 text-neon" : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
       }`}
     >
       <Icon size={13} className={active ? "text-neon" : "text-slate-500"} />

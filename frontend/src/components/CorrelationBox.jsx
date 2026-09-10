@@ -29,7 +29,9 @@ const CorrelationBox = ({ data, summary }) => {
     <Card className="p-5">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Sentiment vs price</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Sentiment vs price
+          </p>
           <h2 className="mt-1 text-xl font-bold text-white">This window</h2>
           <DataSourceBadge source={data?.data_source} className="mt-2" />
         </div>
@@ -42,7 +44,9 @@ const CorrelationBox = ({ data, summary }) => {
             <SentimentIcon size={16} />
             <span className="text-xs font-semibold uppercase">News tone Δ</span>
           </div>
-          <p className={`text-2xl font-bold ${sentimentChange === null ? "text-slate-500" : sentimentPositive ? "text-neon" : "text-danger"}`}>
+          <p
+            className={`text-2xl font-bold ${sentimentChange === null ? "text-slate-500" : sentimentPositive ? "text-neon" : "text-danger"}`}
+          >
             {pct(sentimentChange)}
           </p>
         </div>
@@ -51,7 +55,9 @@ const CorrelationBox = ({ data, summary }) => {
             <PriceIcon size={16} />
             <span className="text-xs font-semibold uppercase">Price Δ</span>
           </div>
-          <p className={`text-2xl font-bold ${priceChange === null ? "text-slate-500" : pricePositive ? "text-neon" : "text-danger"}`}>
+          <p
+            className={`text-2xl font-bold ${priceChange === null ? "text-slate-500" : pricePositive ? "text-neon" : "text-danger"}`}
+          >
             {pct(priceChange)}
           </p>
         </div>
