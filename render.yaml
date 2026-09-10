@@ -6,10 +6,14 @@ services:
     plan: free
     buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ready
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: LOG_LEVEL
+        value: info
       - key: CLIENT_URL
         sync: false
       - key: FRONTEND_URL

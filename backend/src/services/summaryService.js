@@ -1,4 +1,4 @@
-const { isReal } = require("../lib/dataSource");
+const { isUsable } = require("../lib/dataSource");
 
 /**
  * A plain-language description of *current* conditions. Deliberately avoids
@@ -9,14 +9,14 @@ const createMarketSummary = ({ sentiment, correlation }) => {
   const score = sentiment?.score_percent ?? 50;
   const asset = sentiment?.asset || "This asset";
 
-  if (!isReal(sentiment?.data_source)) {
+  if (!isUsable(sentiment?.data_source)) {
     return `Live sentiment data for ${asset} is unavailable right now, so no read is shown.`;
   }
 
-  const priceReal = isReal(correlation?.data_source) && correlation?.price_change !== null;
+  const priceUsable = isUsable(correlation?.data_source) && correlation?.price_change !== null;
 
-  if (!priceReal) {
-    return `${asset} news tone is ${label} at ${score}%. Live price data is unavailable, so no sentiment-vs-price comparison is shown.`;
+  if (!priceUsable) {
+    return `${asset} news tone is ${label} at ${score}%. Price data is unavailable, so no sentiment-vs-price comparison is shown.`;
   }
 
   const priceMove = correlation.price_change;
