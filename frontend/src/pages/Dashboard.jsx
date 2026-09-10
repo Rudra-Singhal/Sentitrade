@@ -8,6 +8,7 @@ import NewsFeed from "../components/NewsFeed.jsx";
 import SentimentChart from "../components/SentimentChart.jsx";
 import CorrelationBox from "../components/CorrelationBox.jsx";
 import MarketMetrics from "../components/MarketMetrics.jsx";
+import MarketContext from "../components/MarketContext.jsx";
 import AlertBanner from "../components/AlertBanner.jsx";
 import GlobalDataBanner from "../components/GlobalDataBanner.jsx";
 import Disclaimer from "../components/Disclaimer.jsx";
@@ -232,6 +233,10 @@ const Dashboard = () => {
         <section className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
           <SentimentChart points={trend} source={trendSource} />
           <MarketMetrics sentiment={sentiment} trend={trend} correlation={correlation} />
+        </section>
+
+        <section className="mt-5">
+          <MarketContext sentiment={sentiment} />
         </section>
 
         <Disclaimer />
