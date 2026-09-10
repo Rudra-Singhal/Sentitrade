@@ -17,7 +17,9 @@ const metrics = require("../lib/metrics");
  */
 const ingestAsset = async (assetInput, { limit = 25, types = ["news"], connectors } = {}) => {
   const asset = normalizeAsset(assetInput);
-  const selected = connectors || enabledConnectors(types);
+  const selected = (connectors || enabledConnectors(types)).filter(
+    (c) => typeof c.appliesTo !== "function" || c.appliesTo(asset)
+  );
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const perSource = {};

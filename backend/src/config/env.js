@@ -9,6 +9,7 @@ const schema = z.object({
   FRONTEND_URL: z.string().optional(),
   MONGODB_URI: z.string().optional(),
   NEWS_API_KEY: z.string().optional(),
+  FINNHUB_API_KEY: z.string().optional(),
   ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("false"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
