@@ -10,7 +10,9 @@ const schema = z.object({
   MONGODB_URI: z.string().optional(),
   NEWS_API_KEY: z.string().optional(),
   FINNHUB_API_KEY: z.string().optional(),
-  ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("false"),
+  // Live price providers (Binance/Yahoo, both key-free) are ON by default.
+  // Set to "false" only as a kill switch.
+  ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("true"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
 });
@@ -47,5 +49,5 @@ module.exports = {
   isProd,
   isTest,
   isDev,
-  livePriceEnabled: env.ENABLE_LIVE_PRICE_API === "true"
+  livePriceEnabled: env.ENABLE_LIVE_PRICE_API !== "false"
 };

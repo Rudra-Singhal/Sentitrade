@@ -40,7 +40,7 @@ Traders often watch price charts and news separately. This dashboard brings both
 | News | NewsAPI |
 | Sentiment | vader-sentiment |
 | Price UI | TradingView widget (always live) |
-| Backend price | CoinGecko for crypto (opt-in); no stock source yet; `unavailable` otherwise |
+| Backend price | Binance klines (crypto) · Yahoo chart API (equities, key-free); `unavailable` on failure in prod |
 | Observability | pino structured logs, `/api/ready`, `/api/metrics` |
 | Validation | zod (query + socket payloads) |
 
@@ -130,7 +130,7 @@ flowchart LR
   TrendSvc --> Mongo
   CorrSvc --> PriceSvc["Price Service"]
   CorrSvc --> TrendSvc
-  PriceSvc --> CoinGecko["CoinGecko"]
+  PriceSvc --> Binance["Binance / Yahoo"]
 
   NewsSvc -. "fallback" .-> Mock["Mock Demo Data"]
   PriceSvc -. "fallback" .-> Mock
@@ -487,7 +487,7 @@ PORT=3000
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sentiment-dashboard
 NEWS_API_KEY=your_newsapi_key
-ENABLE_LIVE_PRICE_API=false
+ENABLE_LIVE_PRICE_API=true
 LOG_LEVEL=info
 ```
 
@@ -503,7 +503,7 @@ synthetic demo data, clearly badged `simulated` in the UI. In **production** (`N
 the server refuses to start without `MONGODB_URI` and a client URL, and never substitutes
 synthetic data — unavailable values are returned as `unavailable` and shown as "—".
 
-`ENABLE_LIVE_PRICE_API` is false by default because the UI already uses TradingView for live price and the backend correlation can use stable mock series. Set it to `true` if you want backend crypto correlation to call CoinGecko directly.
+`ENABLE_LIVE_PRICE_API` is `true` by default: the backend pulls real prices from Binance (crypto) and Yahoo's key-free chart API (equities) for the correlation panel. Set it to `false` only as a kill switch; the panel then reports `unavailable` in production.
 
 ## Running The App
 
@@ -607,7 +607,7 @@ CLIENT_URL=https://your-frontend-domain.vercel.app
 FRONTEND_URL=https://your-frontend-domain.vercel.app
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sentiment-dashboard
 NEWS_API_KEY=your_newsapi_key
-ENABLE_LIVE_PRICE_API=false
+ENABLE_LIVE_PRICE_API=true
 RATE_LIMIT_PER_MINUTE=120
 ```
 
@@ -768,7 +768,7 @@ The latest version fixes the browser console issues shown during local testing:
 - Kept a single stable Socket.io client instead of recreating the socket on every asset or time-filter change.
 - Removed React dev StrictMode wrapper to avoid duplicate mount/unmount socket noise during demos.
 - Added `frontend/public/favicon.svg` to remove the `/favicon.ico` 404.
-- Made backend live price fetching opt-in to avoid CoinGecko rate-limit noise during local demos.
+- Backend price data now comes from Binance (crypto) and Yahoo (equities); simulated series are dev-only and clearly badged.
 - Changed sentiment change to use percentage-point movement on the normalized sentiment scale, avoiding unrealistic values when raw sentiment starts near zero.
 
 TradingView may still open its own internal streaming connection inside the third-party iframe. If a browser extension or network blocks TradingView streaming, the app remains functional and the backend sentiment/correlation pipeline still works.

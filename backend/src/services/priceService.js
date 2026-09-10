@@ -1,7 +1,7 @@
-const axios = require("axios");
 const { normalizeAsset } = require("./assetService");
 const { makeMockPriceSeries } = require("./mockDataService");
 const { toMinutes } = require("./newsService");
+const { providerFor } = require("../pricing");
 const { livePriceEnabled } = require("../config/env");
 const logger = require("../config/logger");
 const { errInfo } = logger;
@@ -10,65 +10,47 @@ const { syntheticOrNull } = require("../lib/fallback");
 const { DATA_SOURCE } = require("../lib/dataSource");
 
 const priceCache = new Map();
-
-const fetchCryptoSeries = async (assetConfig, range) => {
-  const minutes = toMinutes(range);
-  const url = `https://api.coingecko.com/api/v3/coins/${assetConfig.coingeckoId}/market_chart`;
-
-  const response = await axios.get(url, {
-    timeout: 8000,
-    params: { vs_currency: "usd", days: 1 }
-  });
-
-  const prices = response.data?.prices || [];
-  const since = Date.now() - minutes * 60 * 1000;
-
-  return prices
-    .filter(([timestamp]) => timestamp >= since)
-    .map(([timestamp, price]) => ({
-      timestamp: new Date(timestamp).toISOString(),
-      price: Number(price.toFixed(2))
-    }));
-};
+const CACHE_MS = 60_000;
 
 /**
- * @returns {{ series: object[], price_source: string }}
+ * @returns {{ series: {timestamp,price}[], price_source: string }}
  */
 const getPriceSeries = async (asset = "BTC", range = "1h") => {
   const assetConfig = normalizeAsset(asset);
   const minutes = toMinutes(range);
   const cacheKey = `${assetConfig.symbol}:${range}`;
-  const cached = priceCache.get(cacheKey);
 
-  if (cached && Date.now() - cached.timestamp < 60000) {
+  const cached = priceCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CACHE_MS) {
     return { series: cached.series, price_source: cached.price_source };
   }
 
-  if (livePriceEnabled && assetConfig.type === "crypto" && assetConfig.coingeckoId) {
+  const provider = providerFor(assetConfig);
+  if (livePriceEnabled && provider) {
     try {
-      const series = await fetchCryptoSeries(assetConfig, range);
+      const sinceMs = Date.now() - minutes * 60 * 1000;
+      const { series, price_source } = await provider.fetch(assetConfig, range, sinceMs);
       if (series.length >= 2) {
-        priceCache.set(cacheKey, { timestamp: Date.now(), series, price_source: DATA_SOURCE.LIVE });
-        metrics.inc("price_fetch_total:ok");
-        metrics.markTimestamp("last_price_fetch_ok_at");
-        return { series, price_source: DATA_SOURCE.LIVE };
+        priceCache.set(cacheKey, { at: Date.now(), series, price_source });
+        metrics.inc(`price_fetch_total:${provider.id}:ok`);
+        metrics.markTimestamp(`last_price_fetch_ok_at:${provider.id}`);
+        return { series, price_source };
       }
+      metrics.inc(`price_fetch_total:${provider.id}:empty`);
     } catch (err) {
-      metrics.inc("price_fetch_total:error");
-      logger.warn({ asset: assetConfig.symbol, err: errInfo(err) }, "price provider unavailable");
+      metrics.inc(`price_fetch_total:${provider.id}:error`);
+      logger.warn(
+        { asset: assetConfig.symbol, provider: provider.id, err: errInfo(err) },
+        "price provider failed"
+      );
     }
   }
 
   const mock = syntheticOrNull("price", () =>
     makeMockPriceSeries(assetConfig, Math.min(minutes, 240))
   );
-
   if (mock) {
-    priceCache.set(cacheKey, {
-      timestamp: Date.now(),
-      series: mock,
-      price_source: DATA_SOURCE.SIMULATED
-    });
+    priceCache.set(cacheKey, { at: Date.now(), series: mock, price_source: DATA_SOURCE.SIMULATED });
     return { series: mock, price_source: DATA_SOURCE.SIMULATED };
   }
 
