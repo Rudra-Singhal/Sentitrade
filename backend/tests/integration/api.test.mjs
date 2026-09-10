@@ -59,18 +59,18 @@ describe("GET /api/health & /api/ready", () => {
   });
 });
 
-describe("GET /api/assets", () => {
+describe("GET /api/v1/assets", () => {
   it("returns the asset list", async () => {
-    const res = await request(app).get("/api/assets");
+    const res = await request(app).get("/api/v1/assets");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.assets)).toBe(true);
     expect(res.body.assets.length).toBeGreaterThan(0);
   });
 });
 
-describe("GET /api/sentiment", () => {
+describe("GET /api/v1/sentiment", () => {
   it("returns a snapshot with a data_source and a signal", async () => {
-    const res = await request(app).get("/api/sentiment?asset=BTC&range=1h");
+    const res = await request(app).get("/api/v1/sentiment?asset=BTC&range=1h");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ asset: "BTC" });
     expect(["live", "cached", "delayed", "simulated", "unavailable"]).toContain(
@@ -83,20 +83,20 @@ describe("GET /api/sentiment", () => {
   });
 
   it("rejects a malformed asset with 400", async () => {
-    const res = await request(app).get("/api/sentiment?asset=DROP%20TABLE");
+    const res = await request(app).get("/api/v1/sentiment?asset=DROP%20TABLE");
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("invalid_query");
   });
 
   it("rejects a non-numeric limit with 400", async () => {
-    const res = await request(app).get("/api/sentiment?asset=BTC&limit=abc");
+    const res = await request(app).get("/api/v1/sentiment?asset=BTC&limit=abc");
     expect(res.status).toBe(400);
   });
 });
 
-describe("GET /api/sentiment/trend", () => {
+describe("GET /api/v1/sentiment/trend", () => {
   it("returns bucketed points for a stored asset", async () => {
-    const res = await request(app).get("/api/sentiment/trend?asset=BTC&range=1h");
+    const res = await request(app).get("/api/v1/sentiment/trend?asset=BTC&range=1h");
     expect(res.status).toBe(200);
     expect(res.body.asset).toBe("BTC");
     expect(Array.isArray(res.body.points)).toBe(true);
@@ -104,9 +104,9 @@ describe("GET /api/sentiment/trend", () => {
   });
 });
 
-describe("GET /api/correlation", () => {
+describe("GET /api/v1/correlation", () => {
   it("returns the co-movement insight + note", async () => {
-    const res = await request(app).get("/api/correlation?asset=BTC&range=1h");
+    const res = await request(app).get("/api/v1/correlation?asset=BTC&range=1h");
     expect(res.status).toBe(200);
     expect(res.body.note).toMatch(/not a predictive correlation/i);
     expect(res.body).toHaveProperty("insight");
@@ -116,7 +116,7 @@ describe("GET /api/correlation", () => {
 
 describe("unknown routes", () => {
   it("404s with a json body", async () => {
-    const res = await request(app).get("/api/nope");
+    const res = await request(app).get("/api/v1/nope");
     expect(res.status).toBe(404);
     expect(res.body.message).toBe("Route not found");
   });

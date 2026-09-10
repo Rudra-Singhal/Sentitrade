@@ -11,7 +11,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       - key: LOG_LEVEL
         value: info
       - key: CLIENT_URL
@@ -41,8 +41,23 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: geolocation=(), microphone=(), camera=(), payment=()
     envVars:
       - key: VITE_API_URL
         sync: false
       - key: VITE_SOCKET_URL
+        sync: false
+      - key: VITE_SENTRY_DSN
         sync: false

@@ -51,10 +51,11 @@ app.get("/", (_req, res) => {
   });
 });
 
+// Ops endpoints stay unversioned; data endpoints are versioned.
 app.use("/api", healthRoutes);
-app.use("/api", assetRoutes);
-app.use("/api", sentimentRoutes);
-app.use("/api", correlationRoutes);
+app.use("/api/v1", assetRoutes);
+app.use("/api/v1", sentimentRoutes);
+app.use("/api/v1", correlationRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });

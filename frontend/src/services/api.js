@@ -1,9 +1,9 @@
 import axios from "axios";
 
 const getDefaultApiUrl = () => {
-  if (typeof window === "undefined") return "http://localhost:3000/api";
+  if (typeof window === "undefined") return "http://localhost:3000/api/v1";
 
-  return `${window.location.protocol}//${window.location.hostname}:3000/api`;
+  return `${window.location.protocol}//${window.location.hostname}:3000/api/v1`;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || getDefaultApiUrl();
