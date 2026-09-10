@@ -1,5 +1,6 @@
 const { dedupeKey } = require("../lib/dedupe");
 const { resolveEntities } = require("./entities");
+const { weightForSource } = require("../config/sources");
 
 /** Reject absurd timestamps; default missing/invalid to now. */
 const clampPublishedAt = (value) => {
@@ -51,6 +52,7 @@ const normalize = (connector, assetSymbol, doc) => {
     assets: resolvedSymbols,
     entities,
     relevance: doc.relevance ?? primaryRelevance,
+    source_weight: weightForSource(doc.provider_meta?.source_name || connector.id),
     engagement: {
       likes: doc.engagement?.likes ?? null,
       shares: doc.engagement?.shares ?? null,

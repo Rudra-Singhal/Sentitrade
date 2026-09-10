@@ -2,6 +2,7 @@ const { normalizeAsset } = require("../services/assetService");
 const { enabledConnectors } = require("../connectors");
 const { normalize } = require("./normalize");
 const { scoreDocument } = require("./score");
+const { flagNearDuplicates } = require("./dedupeNearby");
 const { persist } = require("./persist");
 const logger = require("../config/logger");
 const { errInfo } = logger;
@@ -34,16 +35,19 @@ const ingestAsset = async (assetInput, { limit = 25, types = ["news"], connector
         .filter(Boolean)
         .map(scoreDocument);
 
+      const duplicates = await flagNearDuplicates(asset.symbol, docs);
       const lowRelevance = docs.filter((d) => (d.relevance ?? 1) < 0.35).length;
       const { upserted } = await persist(docs);
       perSource[connector.id] = {
         fetched: raw.length,
         normalized: docs.length,
         low_relevance: lowRelevance,
+        near_duplicate: duplicates,
         new: upserted
       };
       newCount += upserted;
       if (lowRelevance) metrics.inc(`ingest_low_relevance_total:${connector.id}`, lowRelevance);
+      if (duplicates) metrics.inc(`ingest_near_duplicate_total:${connector.id}`, duplicates);
       if (raw.length > 0) fetchedAny = true;
 
       metrics.inc(`ingest_docs_total:${connector.id}:ok`, docs.length);

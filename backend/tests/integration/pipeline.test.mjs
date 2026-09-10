@@ -88,6 +88,37 @@ describe("ingestAsset", () => {
     expect(snap.items[0].text).toMatch(/ETF demand/);
   });
 
+  it("flags the same story from two sources as a near-duplicate and counts it once", async () => {
+    const wireStory =
+      "Bitcoin spot ETF inflows accelerate as institutional demand improves further";
+    const reworded =
+      "Bitcoin ETF inflows accelerate on further improvement in institutional demand";
+
+    await ingestAsset("BTC", {
+      limit: 10,
+      connectors: [
+        fakeConnector("newsapi", [
+          { ...article(wireStory), provider_meta: { source_name: "Reuters" } }
+        ])
+      ]
+    });
+    await ingestAsset("BTC", {
+      limit: 10,
+      connectors: [
+        fakeConnector("rss", [{ ...article(reworded), provider_meta: { source_name: "CoinDesk" } }])
+      ]
+    });
+
+    const all = await RawDocument.find({ primary_asset: "BTC" }).lean();
+    expect(all).toHaveLength(2);
+    expect(all.filter((d) => d.is_duplicate)).toHaveLength(1);
+    expect(all.every((d) => d.simhash)).toBe(true);
+    expect(new Set(all.map((d) => d.cluster_id)).size).toBe(1); // same cluster
+
+    const snap = await getLatestSentiment("BTC", 10, false);
+    expect(snap.items).toHaveLength(1); // counted once
+  });
+
   it("isolates a failing connector and still records the others", async () => {
     const connectors = [
       fakeConnector("bad", [], { throws: "provider 500" }),

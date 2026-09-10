@@ -20,6 +20,14 @@ const rawDocumentSchema = new mongoose.Schema(
     // sha1 of normalized title/text — the real dedupe key (short strings only).
     dedupe_key: { type: String, required: true, unique: true },
 
+    // near-duplicate clustering (SimHash) — same story across sources
+    simhash: { type: String, default: null },
+    cluster_id: { type: String, default: null, index: true },
+    is_duplicate: { type: Boolean, default: false },
+
+    // base credibility weight of the source (see config/sources.js)
+    source_weight: { type: Number, default: 0.5 },
+
     url: { type: String, default: null },
     author: {
       handle: { type: String, default: null },
