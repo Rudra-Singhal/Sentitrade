@@ -1,25 +1,33 @@
-require("dotenv").config();
+const { env } = require("./config/env");
+const logger = require("./config/logger");
+const { errInfo } = logger;
 
 const cors = require("cors");
 const compression = require("compression");
 const express = require("express");
 const helmet = require("helmet");
-const http = require("http");
 const rateLimit = require("express-rate-limit");
-const connectDB = require("./config/db");
+const pinoHttp = require("pino-http");
+
 const { corsOptions } = require("./config/cors");
-const initSocket = require("./services/socketService");
+const { captureException } = require("./config/sentry");
 const healthRoutes = require("./routes/healthRoutes");
 const sentimentRoutes = require("./routes/sentimentRoutes");
 const correlationRoutes = require("./routes/correlationRoutes");
 const assetRoutes = require("./routes/assetRoutes");
 
+// Pure Express app — no DB connection, no listener, no scheduler. `server.js`
+// wires those up for the real process; tests import this directly.
 const app = express();
-const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
 
 app.set("trust proxy", 1);
 
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: { ignore: (req) => req.url === "/api/health" }
+  })
+);
 app.use(helmet());
 app.use(compression());
 app.use(cors(corsOptions));
@@ -28,7 +36,7 @@ app.use(
   "/api",
   rateLimit({
     windowMs: 60 * 1000,
-    limit: Number(process.env.RATE_LIMIT_PER_MINUTE || 120),
+    limit: env.RATE_LIMIT_PER_MINUTE,
     standardHeaders: true,
     legacyHeaders: false
   })
@@ -38,48 +46,36 @@ app.get("/", (_req, res) => {
   res.json({
     name: "SentiTrade API",
     status: "running",
-    health: "/api/health"
+    health: "/api/health",
+    ready: "/api/ready"
   });
 });
 
+// Ops endpoints stay unversioned; data endpoints are versioned.
 app.use("/api", healthRoutes);
-app.use("/api", assetRoutes);
-app.use("/api", sentimentRoutes);
-app.use("/api", correlationRoutes);
+app.use("/api/v1", assetRoutes);
+app.use("/api/v1", sentimentRoutes);
+app.use("/api/v1", correlationRoutes);
 
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
 app.use((error, _req, res, _next) => {
-  console.error(error);
-  const status = error.message?.startsWith("CORS blocked") ? 403 : error.status || 500;
+  const isCors = error.message?.startsWith("CORS blocked");
+  const status = isCors ? 403 : error.status || 500;
+
+  logger.error({ err: errInfo(error), status }, "request failed");
+  if (status >= 500) captureException(error);
 
   res.status(status).json({
-    message: error.message || "Internal server error"
+    message:
+      status === 403
+        ? "Origin not allowed"
+        : status >= 500
+          ? "Internal server error"
+          : error.message || "Request failed"
   });
 });
 
-const start = async () => {
-  await connectDB();
-  initSocket(server);
-
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-};
-
-start();
-
-const shutdown = (signal) => {
-  console.log(`${signal} received. Closing server...`);
-  server.close(() => {
-    console.log("HTTP server closed");
-    process.exit(0);
-  });
-};
-
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-
-module.exports = { app, server };
+module.exports = app;

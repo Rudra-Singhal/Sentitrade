@@ -1,19 +1,31 @@
 # SentiTrade
 
-A production-grade hackathon project that compares real-time market price action with news-based sentiment for crypto and stock assets.
+An **educational** dashboard that puts news-headline sentiment next to price movement for a
+single crypto or stock asset, and describes whether the two moved together this window.
 
-The app shows a live TradingView chart, headline sentiment, sentiment trend, a BUY/SELL/HOLD signal, clear market metrics, alerts, and a correlation insight that explains whether sentiment and price are moving together or diverging.
+> ⚠️ **Not investment advice. Not a price predictor. Not backtested.** The BUY / SELL / HOLD
+> label is a transparent rule-based illustration. See [METHODOLOGY.md](./METHODOLOGY.md) for
+> exactly how every number is produced and what this project does *not* do. The full technical
+> audit is in [AUDIT.md](./AUDIT.md); the v2 plan is in [V2_ROADMAP.md](./V2_ROADMAP.md).
+
+The app shows a live TradingView chart, headline sentiment, a sentiment trend, clear market
+metrics, threshold alerts, an illustrative BUY / SELL / HOLD label, and a "sentiment vs price"
+panel that describes co-movement over the selected window (not a statistical correlation).
+
+Every value carries a `data_source` badge (`live` / `cached` / `delayed` / `simulated` /
+`unavailable`). Simulated demo data is shown only outside production and is always badged;
+in production, missing data renders as "—" and is never faked.
 
 ## What It Solves
 
 Traders often watch price charts and news separately. This dashboard brings both signals into one screen:
 
-- Price: live TradingView chart for BTC, ETH, and AAPL.
-- Sentiment: NewsAPI headlines analyzed with Vader Sentiment.
-- Trend: average sentiment aggregated over time.
-- Correlation: compares sentiment movement with price movement.
-- Signal: converts sentiment, headline mix, momentum, price movement, and correlation into BUY, SELL, or HOLD.
-- Real time: Socket.io pushes refreshed sentiment and correlation data every 30 seconds.
+- Price: live TradingView chart.
+- Sentiment: NewsAPI headlines scored with VADER (a general-purpose model — see METHODOLOGY.md for why that is a known limitation).
+- Trend: average headline sentiment aggregated over time.
+- Sentiment vs price: describes whether news tone and price moved the same way this window. This is co-movement of two endpoints, not a predictive correlation.
+- Illustrative signal: a transparent rule engine turns news tone, headline mix, sentiment change, and price change into a BUY / SELL / HOLD label with a qualitative strength (weak / moderate / strong alignment — **not** a probability).
+- Real time: Socket.io pushes a refreshed snapshot every 30 seconds.
 
 ## Tech Stack
 
@@ -27,293 +39,149 @@ Traders often watch price charts and news separately. This dashboard brings both
 | Realtime | Socket.io |
 | News | NewsAPI |
 | Sentiment | vader-sentiment |
-| Price UI | TradingView widget |
-| Price correlation | CoinGecko for crypto, mock fallback for demo stability |
+| Price UI | TradingView widget (always live) |
+| Backend price | Binance klines (crypto) · Yahoo chart API (equities, key-free); `unavailable` on failure in prod |
+| Observability | pino structured logs, `/api/ready`, `/api/metrics` |
+| Validation | zod (query + socket payloads) |
 
 ## Folder Structure
 
 ```text
-root/
-├── backend/
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── db.js
-│   │   ├── controllers/
-│   │   │   ├── assetController.js
-│   │   │   ├── correlationController.js
-│   │   │   ├── healthController.js
-│   │   │   └── sentimentController.js
-│   │   ├── models/
-│   │   │   └── NewsSentiment.js
-│   │   ├── routes/
-│   │   │   ├── assetRoutes.js
-│   │   │   ├── correlationRoutes.js
-│   │   │   ├── healthRoutes.js
-│   │   │   └── sentimentRoutes.js
-│   │   ├── services/
-│   │   │   ├── assetService.js
-│   │   │   ├── correlationService.js
-│   │   │   ├── mockDataService.js
-│   │   │   ├── newsService.js
-│   │   │   ├── priceService.js
-│   │   │   ├── signalService.js
-│   │   │   ├── sentimentService.js
-│   │   │   ├── socketService.js
-│   │   │   └── summaryService.js
-│   │   └── app.js
-│   ├── .env.example
-│   └── package.json
-│
-└── frontend/
-    ├── public/
-    │   └── favicon.svg
-    ├── src/
-    │   ├── components/
-    │   │   ├── AlertBanner.jsx
-    │   │   ├── AssetSelector.jsx
-    │   │   ├── Card.jsx
-    │   │   ├── CorrelationBox.jsx
-    │   │   ├── NewsFeed.jsx
-    │   │   ├── SentimentChart.jsx
-    │   │   ├── SentimentGauge.jsx
-    │   │   ├── MarketMetrics.jsx
-    │   │   ├── TimeFilter.jsx
-    │   │   └── TradingViewWidget.jsx
-    │   ├── pages/
-    │   │   └── Dashboard.jsx
-    │   ├── services/
-    │   │   ├── api.js
-    │   │   └── socket.js
-    │   ├── App.jsx
-    │   ├── index.css
-    │   └── main.jsx
-    ├── .env.example
-    └── package.json
+backend/
+  src/
+    config/        env (zod-validated), logger (pino + redaction), cors, db, sentry
+    connectors/    source-connector interface + newsapi / finnhub / rss
+    pricing/       binance (crypto) / yahoo (equities) providers + registry
+    pipeline/      normalize -> score -> persist -> ingest orchestrator
+    jobs/          activeAssets registry + interval scheduler
+    models/        RawDocument (canonical multi-source document)
+    services/      newsService, priceService, correlationService, signalService,
+                   summaryService, snapshotService, socketService
+    controllers/ routes/ middleware/ schemas/ lib/
+    app.js         pure Express app
+    server.js      process entry (bootstrap + graceful shutdown)
+  tests/           vitest unit + mongodb-memory-server / socket.io integration
+frontend/
+  src/
+    components/    dashboard panels + DataSourceBadge / GlobalDataBanner /
+                   Disclaimer / ErrorBoundary
+    pages/Dashboard.jsx
+    services/      api (REST, first paint + fallback), socket (live channel)
+    lib/           dataSource helpers, sentry
+    test/          vitest + React Testing Library + jest-axe
 ```
 
-## Architecture Flowchart
+## Data Flow
 
 ```mermaid
 flowchart LR
-  User["User Browser"] --> React["React Dashboard"]
-  React --> TV["TradingView Widget"]
-  React --> API["Express REST API"]
-  React <-->|"sentiment:update"| Socket["Socket.io Server"]
+  subgraph Ingestion["Scheduler — every 120s, per active asset"]
+    NewsAPI --> NORM
+    Finnhub --> NORM
+    RSS --> NORM
+    NORM["normalize"] --> SCORE["score (VADER)"] --> PERSIST["upsert by dedupe_key"]
+  end
+  PERSIST --> Mongo[("RawDocument
+(TTL 90d)")]
 
-  API --> NewsSvc["News Service"]
-  API --> TrendSvc["Trend Service"]
-  API --> CorrSvc["Correlation Service"]
-  API --> SignalSvc["Signal Service"]
+  subgraph Serving["Reads never ingest"]
+    Mongo --> SENT["news / trend"]
+    Binance --> PRICE["price series"]
+    Yahoo --> PRICE
+    SENT --> CORR["co-movement"]
+    PRICE --> CORR
+    SENT --> SIG["rule signal"]
+    CORR --> SIG
+    SENT --> SNAP["snapshot (15s cache)"]
+    CORR --> SNAP
+    SIG --> SNAP
+  end
 
-  Socket --> NewsSvc
-  Socket --> CorrSvc
-  Socket --> SignalSvc
-
-  NewsSvc --> NewsAPI["NewsAPI"]
-  NewsSvc --> Vader["Vader Sentiment"]
-  NewsSvc --> Mongo["MongoDB Atlas"]
-
-  TrendSvc --> Mongo
-  CorrSvc --> PriceSvc["Price Service"]
-  CorrSvc --> TrendSvc
-  PriceSvc --> CoinGecko["CoinGecko"]
-
-  NewsSvc -. "fallback" .-> Mock["Mock Demo Data"]
-  PriceSvc -. "fallback" .-> Mock
-  SignalSvc --> React
+  SNAP --> REST["/api/v1/*"] --> UI["React (first paint)"]
+  SNAP --> WS["Socket.io rooms
+asset:range"] --> UI2["React (live)"]
 ```
 
-## Backend Request Flow
+The only always-live element is the embedded TradingView chart. Every other value
+carries a `data_source` label the UI renders as a badge.
 
-```mermaid
-sequenceDiagram
-  participant UI as React UI
-  participant API as Express API
-  participant News as News Service
-  participant Vader as Vader Sentiment
-  participant DB as MongoDB
-  participant Corr as Correlation Service
-  participant Price as Price Service
-  participant Signal as Signal Service
+## Multi-source pipeline
 
-  UI->>API: GET /api/sentiment?asset=BTC&range=1h
-  API->>News: Fetch latest headlines
-  News->>Vader: Score each headline
-  Vader-->>News: compound score + label
-  News->>DB: Upsert headline sentiment
-  News-->>API: latest sentiment snapshot
-  API->>Corr: Build correlation insight
-  Corr->>DB: Read sentiment trend
-  Corr->>Price: Read price series
-  Price-->>Corr: price_change %
-  Corr-->>API: insight
-  API->>Signal: Generate BUY / SELL / HOLD
-  Signal-->>API: signal, confidence, reasons
-  API-->>UI: news, score, label, signal, summary
-```
+`backend/src/connectors/` — every provider implements one interface
+(`id`, `sourceType`, `cadenceSeconds`, `enabled`, `fetch(ctx)`, `healthcheck()`),
+so adding a source touches nothing downstream.
 
-## Real-Time Flow
+| Connector | Applies to | Key | Notes |
+| --- | --- | --- | --- |
+| `newsapi` | all | `NEWS_API_KEY` | free tier: 100 req/day, delayed articles |
+| `finnhub` | equities | `FINNHUB_API_KEY` | company-news, free 60 req/min |
+| `rss` | crypto | none | CoinDesk / Cointelegraph / Decrypt / The Block, asset-mention filtered |
 
-```mermaid
-flowchart TD
-  Start["Socket connects"] --> Join["Client sends selected asset + range"]
-  Join --> Snapshot["Server builds sentiment + correlation snapshot"]
-  Snapshot --> Signal["Generate BUY / SELL / HOLD"]
-  Signal --> Emit["Emit sentiment:update"]
-  Emit --> UI["React updates gauge, news, chart, metrics, insight"]
-  Emit --> Wait["Wait 30 seconds"]
-  Wait --> Snapshot
-  UI --> Change["User changes asset or time filter"]
-  Change --> Join
-```
+Each connector call is retried (exponential backoff, 429-aware) and wrapped in a
+circuit breaker (`opossum`) so a failing provider is skipped for a cooldown.
 
-## Sentiment Engine
+Documents are normalized to `RawDocument`, deduped by
+`sha1(asset + normalized title)` (collapses re-worded wire stories and trailing
+`" - Source"` attributions), scored, and `bulkWrite`-upserted. `model` /
+`model_version` are stored per document so the VADER -> finance-model swap
+planned for a later milestone stays reproducible.
 
-The sentiment engine lives in `backend/src/services/sentimentService.js`.
+## Prices
 
-It uses Vader compound scores:
+- Crypto: Binance klines (`api.binance.com`, no key).
+- Equities: Yahoo's key-free chart API, labelled `delayed` (last close) when the
+  US session is closed (`lib/marketCalendar.js`).
+- `ENABLE_LIVE_PRICE_API=false` is a kill switch; when live data is unavailable
+  the panel is `unavailable` in production (never a synthetic series).
 
-| Compound Score | Label |
-| --- | --- |
-| `>= 0.05` | positive |
-| `<= -0.05` | negative |
-| between `-0.05` and `0.05` | neutral |
+## Sentiment
 
-Each headline becomes:
+VADER compound score per headline title (`>= 0.05` positive, `<= -0.05` negative,
+else neutral), aggregated as an unweighted mean over the latest ~20 documents and
+rescaled to `0–100%`. VADER is a general-purpose model and misreads financial
+phrasing (e.g. "crushes earnings"); a finance-specific model, relevance filtering,
+entity attribution and near-dup clustering are planned. See
+[METHODOLOGY.md](./METHODOLOGY.md).
+
+## Sentiment vs price ("correlation")
+
+Compares the **start and end** of the window for news tone and price. If both
+moved more than a small threshold in the same direction it reports "moved in the
+same direction"; opposite -> "opposite directions"; otherwise "roughly flat".
+
+This is co-movement of two endpoints. It is **not** a correlation coefficient and
+carries **no predictive meaning**. A real rolling correlation (`r`, sample size,
+confidence interval, lead/lag) is a later milestone.
 
 ```json
 {
-  "text": "Bitcoin spot ETF inflows accelerate as institutional demand improves",
-  "source": "CoinDesk",
-  "sentiment_score": 0.3182,
-  "sentiment_label": "positive",
-  "asset": "BTC",
-  "timestamp": "2026-04-26T07:00:00.000Z"
+  "asset": "BTC", "range": "1h",
+  "sentiment_change": 20, "price_change": 2.5, "current_price": 67350,
+  "insight": "Sentiment and price moved in the same direction this window.",
+  "note": "Describes how sentiment and price moved this window. Not a predictive correlation.",
+  "data_source": "live"
 }
 ```
 
-## Database Schema
+## Illustrative signal
 
-MongoDB stores normalized headline sentiment records:
-
-```js
-{
-  text: String,
-  source: String,
-  sentiment_score: Number,
-  sentiment_label: "positive" | "neutral" | "negative",
-  asset: String,
-  timestamp: Date
-}
-```
-
-Duplicate prevention is handled by a unique index on:
-
-```js
-{ text: 1, asset: 1 }
-```
-
-This prevents repeated NewsAPI pulls from filling the database with the same headline.
-
-## Aggregation Flow
-
-```mermaid
-flowchart LR
-  Headlines["Stored headline sentiment"] --> Match["Match asset + time range"]
-  Match --> Group["Group by minute"]
-  Group --> Average["Average sentiment_score"]
-  Average --> Percent["Convert -1..1 score to 0..100%"]
-  Percent --> Chart["Frontend line chart + market metrics"]
-```
-
-The trend API groups records by minute and returns points like:
+`backend/src/services/signalService.js` — a transparent rule engine adds/subtracts
+integer points from news tone, positive/negative headline ratio, tone change and
+price change over the window. `score >= 4` -> BUY, `<= -4` -> SELL, else HOLD. If
+inputs are unavailable the label is forced to `HOLD`.
 
 ```json
 {
-  "timestamp": "2026-04-26T07:00:00.000Z",
-  "sentiment_avg": 0.2065,
-  "sentiment_percent": 60,
-  "count": 4
+  "signal": "BUY", "tone": "bullish", "strength": "moderate", "score": 4,
+  "reasons": ["Overall news tone is constructive at 63%.", "65% of recent headlines read positive."],
+  "data_source": "live", "price_considered": true,
+  "disclaimer": "Educational tool only. Not investment advice and not a recommendation to buy or sell any asset. Signals are illustrative and have not been backtested."
 }
 ```
 
-## Correlation Engine
-
-The correlation engine compares:
-
-- Sentiment change over the selected time window.
-- Price change over the same time window.
-
-```mermaid
-flowchart TD
-  Trend["Sentiment trend points"] --> SentDelta["Calculate sentiment_change %"]
-  Price["Price series"] --> PriceDelta["Calculate price_change %"]
-  SentDelta --> Compare["Compare movement direction"]
-  PriceDelta --> Compare
-  Compare --> Positive["Positive correlation detected"]
-  Compare --> Negative["Negative correlation detected"]
-  Compare --> Sideways["Sentiment and price are moving sideways"]
-```
-
-Example response:
-
-```json
-{
-  "asset": "BTC",
-  "range": "1h",
-  "sentiment_change": 20,
-  "price_change": 2.5,
-  "current_price": 67350,
-  "insight": "Positive correlation detected"
-}
-```
-
-## Signal Engine
-
-The signal engine lives in `backend/src/services/signalService.js`.
-
-It generates an educational trading signal from the same metrics shown in the UI:
-
-- Overall sentiment score.
-- Positive headline ratio.
-- Negative headline ratio.
-- Sentiment momentum.
-- Price movement.
-- Correlation direction.
-
-```mermaid
-flowchart TD
-  Sentiment["Sentiment score"] --> Score["Rule score"]
-  Headlines["Positive / negative headline ratio"] --> Score
-  Momentum["Sentiment momentum"] --> Score
-  Price["Price move"] --> Score
-  Corr["Correlation insight"] --> Score
-  Score --> Buy["BUY if score >= 4"]
-  Score --> Sell["SELL if score <= -4"]
-  Score --> Hold["HOLD if score is between -3 and 3"]
-  Buy --> Confidence["Confidence + reasons"]
-  Sell --> Confidence
-  Hold --> Confidence
-```
-
-Signal response:
-
-```json
-{
-  "signal": "BUY",
-  "tone": "bullish",
-  "confidence": 77,
-  "score": 4,
-  "reasons": [
-    "Overall sentiment is constructive at 63%.",
-    "65% of recent headlines are positive.",
-    "Sentiment momentum improved by 8 points."
-  ],
-  "disclaimer": "Educational signal only. Not financial advice."
-}
-```
-
-This is intentionally rule-based and transparent. It is not a financial prediction model.
+`strength` (weak / moderate / strong alignment) reflects the magnitude of the rule
+score **only**. It is **not** a probability and **not** a confidence that the call
+is correct — there is no backtest behind it. It is not a prediction model.
 
 ## Frontend UI
 
@@ -341,7 +209,7 @@ The previous color-grid panel has been replaced with a clearer metrics panel. It
 - Sentiment Move: movement between the first and latest sentiment trend point.
 - Price Move: backend correlation price movement over the selected time range.
 - Headline Mix: simple distribution bar for positive, neutral, and negative headlines.
-- Trade Signal: BUY, SELL, or HOLD with confidence and reasons.
+- Illustrative signal: BUY, SELL, or HOLD with a qualitative strength and reasons.
 
 This is easier to explain in a demo because every number has a direct label and business meaning.
 
@@ -350,19 +218,15 @@ This is easier to explain in a demo because every number has a direct label and 
 ### Health
 
 ```http
-GET /api/health
-```
-
-Returns:
-
-```text
-Server running
+GET /api/health   # liveness — process is up
+GET /api/ready    # readiness — DB connected, data pipeline healthy (503 if degraded)
+GET /api/metrics  # in-process counters (fetch outcomes, suppressed-simulated count, ...)
 ```
 
 ### Assets
 
 ```http
-GET /api/assets
+GET /api/v1/assets
 ```
 
 Returns supported assets:
@@ -380,7 +244,7 @@ Returns supported assets:
 ### Latest Sentiment
 
 ```http
-GET /api/sentiment?asset=BTC&range=1h
+GET /api/v1/sentiment?asset=BTC&range=1h
 ```
 
 Returns:
@@ -395,7 +259,7 @@ Returns:
 ### Sentiment Trend
 
 ```http
-GET /api/sentiment/trend?asset=BTC&range=1h
+GET /api/v1/sentiment/trend?asset=BTC&range=1h
 ```
 
 Supported ranges:
@@ -407,7 +271,7 @@ Supported ranges:
 ### Correlation
 
 ```http
-GET /api/correlation?asset=BTC&range=1h
+GET /api/v1/correlation?asset=BTC&range=1h
 ```
 
 Returns sentiment change, price change, current price, insight label, and BUY / SELL / HOLD signal.
@@ -458,26 +322,31 @@ cp .env.example .env
 
 ## Environment Variables
 
-Backend `.env`:
+Backend `.env` (see `backend/.env.example`):
 
 ```bash
+NODE_ENV=development
 PORT=3000
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sentiment-dashboard
 NEWS_API_KEY=your_newsapi_key
-ENABLE_LIVE_PRICE_API=false
+ENABLE_LIVE_PRICE_API=true
+LOG_LEVEL=info
 ```
 
 Frontend `.env`:
 
 ```bash
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=http://localhost:3000/api/v1
 VITE_SOCKET_URL=http://localhost:3000
 ```
 
-If `MONGODB_URI` or `NEWS_API_KEY` are empty, the backend uses mock demo data. This keeps the dashboard usable during judging, demos, and offline development.
+In **development only**, if `MONGODB_URI` or `NEWS_API_KEY` are empty the backend serves
+synthetic demo data, clearly badged `simulated` in the UI. In **production** (`NODE_ENV=production`)
+the server refuses to start without `MONGODB_URI` and a client URL, and never substitutes
+synthetic data — unavailable values are returned as `unavailable` and shown as "—".
 
-`ENABLE_LIVE_PRICE_API` is false by default because the UI already uses TradingView for live price and the backend correlation can use stable mock series. Set it to `true` if you want backend crypto correlation to call CoinGecko directly.
+`ENABLE_LIVE_PRICE_API` is `true` by default: the backend pulls real prices from Binance (crypto) and Yahoo's key-free chart API (equities) for the correlation panel. Set it to `false` only as a kill switch; the panel then reports `unavailable` in production.
 
 ## Running The App
 
@@ -501,6 +370,21 @@ Open:
 http://localhost:5173
 ```
 
+Vite also prints a Network URL such as:
+
+```text
+http://10.10.2.152:5173
+```
+
+In development, SentiTrade automatically points API and Socket.io traffic to the same host on port `3000`. For example, opening `http://10.10.2.152:5173` calls:
+
+```text
+http://10.10.2.152:3000/api
+ws://10.10.2.152:3000
+```
+
+The backend CORS policy allows localhost and private-network Vite origins only in development. Production still uses the explicit `CLIENT_URL` / `FRONTEND_URL` allowlist.
+
 The default local backend port is `3000`. If you use another backend port, update both frontend values together:
 
 ```bash
@@ -512,7 +396,7 @@ Then run the frontend with matching API URLs:
 
 ```bash
 cd frontend
-VITE_API_URL=http://localhost:4000/api VITE_SOCKET_URL=http://localhost:4000 npm run dev
+VITE_API_URL=http://localhost:4000/api/v1 VITE_SOCKET_URL=http://localhost:4000 npm run dev
 ```
 
 ## Deployment
@@ -566,14 +450,14 @@ CLIENT_URL=https://your-frontend-domain.vercel.app
 FRONTEND_URL=https://your-frontend-domain.vercel.app
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sentiment-dashboard
 NEWS_API_KEY=your_newsapi_key
-ENABLE_LIVE_PRICE_API=false
+ENABLE_LIVE_PRICE_API=true
 RATE_LIMIT_PER_MINUTE=120
 ```
 
 6. Health check path:
 
 ```text
-/api/health
+/api/ready
 ```
 
 7. Deploy and copy the backend URL. It will look like:
@@ -587,7 +471,7 @@ Backend production checks:
 ```text
 https://your-backend-name.onrender.com/
 https://your-backend-name.onrender.com/api/health
-https://your-backend-name.onrender.com/api/assets
+https://your-backend-name.onrender.com/api/v1/assets
 ```
 
 ### Frontend Deployment On Vercel
@@ -611,7 +495,7 @@ Output Directory: dist
 4. Add environment variables:
 
 ```bash
-VITE_API_URL=https://your-backend-name.onrender.com/api
+VITE_API_URL=https://your-backend-name.onrender.com/api/v1
 VITE_SOCKET_URL=https://your-backend-name.onrender.com
 ```
 
@@ -659,7 +543,7 @@ NEWS_API_KEY=your_newsapi_key
 Frontend:
 
 ```bash
-VITE_API_URL=https://your-render-api.onrender.com/api
+VITE_API_URL=https://your-render-api.onrender.com/api/v1
 VITE_SOCKET_URL=https://your-render-api.onrender.com
 ```
 
@@ -671,8 +555,8 @@ After deployment, test these in the browser:
 
 ```text
 https://your-backend-name.onrender.com/api/health
-https://your-backend-name.onrender.com/api/sentiment?asset=BTC&range=1h
-https://your-backend-name.onrender.com/api/correlation?asset=BTC&range=1h
+https://your-backend-name.onrender.com/api/v1/sentiment?asset=BTC&range=1h
+https://your-backend-name.onrender.com/api/v1/correlation?asset=BTC&range=1h
 https://your-frontend-domain.vercel.app
 ```
 
@@ -703,7 +587,7 @@ Then open browser DevTools:
 - Graceful shutdown on `SIGTERM` / `SIGINT`.
 - Root API status route at `/`.
 
-## Build Checks
+## Build & Test Checks
 
 Frontend production build:
 
@@ -712,35 +596,28 @@ cd frontend
 npm run build
 ```
 
-Backend syntax check:
+Backend lint + tests:
 
 ```bash
 cd backend
-find src -name "*.js" -print0 | xargs -0 -n1 node --check
+npm run lint && npm test
 ```
-
-## Error Fixes Included
-
-The latest version fixes the browser console issues shown during local testing:
-
-- Replaced fragile TradingView script injection with a direct TradingView widget iframe.
-- Kept a single stable Socket.io client instead of recreating the socket on every asset or time-filter change.
-- Removed React dev StrictMode wrapper to avoid duplicate mount/unmount socket noise during demos.
-- Added `frontend/public/favicon.svg` to remove the `/favicon.ico` 404.
-- Made backend live price fetching opt-in to avoid CoinGecko rate-limit noise during local demos.
-- Changed sentiment change to use percentage-point movement on the normalized sentiment scale, avoiding unrealistic values when raw sentiment starts near zero.
-
-TradingView may still open its own internal streaming connection inside the third-party iframe. If a browser extension or network blocks TradingView streaming, the app remains functional and the backend sentiment/correlation pipeline still works.
 
 ## Production Notes
 
-- Store secrets in environment variables, not source code.
-- Use MongoDB Atlas IP allowlisting for deployment.
-- Add rate-limit protection around NewsAPI routes before public launch.
-- Use a managed host such as Render, Railway, Fly.io, or AWS for the Express API.
-- Use Vercel or Netlify for the Vite frontend.
-- Set frontend environment variables to the deployed backend URL.
-- Consider replacing mock stock pricing with a paid market data provider for production AAPL correlation.
+- Store secrets in the host dashboard, never in source. The backend refuses to
+  start in production without `MONGODB_URI` and a client URL.
+- Restrict MongoDB Atlas network access to your host's egress IPs. Do **not**
+  leave it open to `0.0.0.0/0`, and use a generated password + least-privilege user.
+- Synthetic data is suppressed entirely when `NODE_ENV=production`; missing data
+  is returned as `unavailable`. The `simulated_data_suppressed_total` metric
+  should stay at zero in a healthy production deployment.
+- `NEWS_API_KEY` free tier is 100 requests/day and its terms exclude production
+  use; the scheduler polls conservatively and the app degrades to `unavailable`
+  rather than faking data when the quota is exhausted.
+- Point an uptime monitor (e.g. UptimeRobot) at `/api/ready`, and set
+  `SENTRY_DSN` / `VITE_SENTRY_DSN` for error tracking.
+- The free Render plan sleeps after inactivity; the scheduler restarts on wake.
 
 ## Hackathon Demo Script
 

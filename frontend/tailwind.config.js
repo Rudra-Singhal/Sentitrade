@@ -17,6 +17,15 @@ export default {
       boxShadow: {
         glow: "0 0 35px rgba(57, 255, 136, 0.18)",
         panel: "0 24px 80px rgba(0, 0, 0, 0.35)"
+      },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(-6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" }
+        }
+      },
+      animation: {
+        "fade-in": "fade-in 0.15s ease-out both"
       }
     }
   },
