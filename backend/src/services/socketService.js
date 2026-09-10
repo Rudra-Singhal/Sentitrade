@@ -3,12 +3,19 @@ const { getLatestSentiment } = require("./newsService");
 const { getCorrelationInsight } = require("./correlationService");
 const { createMarketSummary } = require("./summaryService");
 const { generateTradeSignal } = require("./signalService");
-const { getAllowedOrigins } = require("../config/cors");
+const { isOriginAllowed } = require("../config/cors");
 
 const initSocket = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: getAllowedOrigins(),
+      origin(origin, callback) {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`Socket CORS blocked origin: ${origin}`));
+      },
       methods: ["GET", "POST"]
     }
   });

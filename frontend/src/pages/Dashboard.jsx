@@ -13,9 +13,28 @@ import { fetchAssets, fetchCorrelation, fetchSentiment, fetchTrend } from "../se
 import { createSocket } from "../services/socket.js";
 
 const fallbackAssets = [
-  { symbol: "BTC", displayName: "Bitcoin", type: "crypto" },
-  { symbol: "ETH", displayName: "Ethereum", type: "crypto" },
-  { symbol: "AAPL", displayName: "Apple", type: "stock" }
+  // Crypto
+  { symbol: "BTC",  displayName: "Bitcoin",   type: "crypto" },
+  { symbol: "ETH",  displayName: "Ethereum",  type: "crypto" },
+  { symbol: "SOL",  displayName: "Solana",    type: "crypto" },
+  { symbol: "BNB",  displayName: "BNB",       type: "crypto" },
+  { symbol: "XRP",  displayName: "XRP",       type: "crypto" },
+  // Stocks
+  { symbol: "AAPL", displayName: "Apple",     type: "stock" },
+  { symbol: "MSFT", displayName: "Microsoft", type: "stock" },
+  { symbol: "GOOGL",displayName: "Alphabet",  type: "stock" },
+  { symbol: "AMZN", displayName: "Amazon",    type: "stock" },
+  { symbol: "NVDA", displayName: "NVIDIA",    type: "stock" },
+  { symbol: "META", displayName: "Meta",      type: "stock" },
+  { symbol: "TSLA", displayName: "Tesla",     type: "stock" },
+  { symbol: "NFLX", displayName: "Netflix",   type: "stock" },
+  { symbol: "AMD",  displayName: "AMD",       type: "stock" },
+  { symbol: "INTC", displayName: "Intel",     type: "stock" },
+  { symbol: "JPM",  displayName: "JPMorgan",  type: "stock" },
+  { symbol: "V",    displayName: "Visa",      type: "stock" },
+  { symbol: "DIS",  displayName: "Disney",    type: "stock" },
+  { symbol: "PYPL", displayName: "PayPal",    type: "stock" },
+  { symbol: "UBER", displayName: "Uber",      type: "stock" }
 ];
 
 const Dashboard = () => {

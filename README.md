@@ -501,6 +501,21 @@ Open:
 http://localhost:5173
 ```
 
+Vite also prints a Network URL such as:
+
+```text
+http://10.10.2.152:5173
+```
+
+In development, SentiTrade automatically points API and Socket.io traffic to the same host on port `3000`. For example, opening `http://10.10.2.152:5173` calls:
+
+```text
+http://10.10.2.152:3000/api
+ws://10.10.2.152:3000
+```
+
+The backend CORS policy allows localhost and private-network Vite origins only in development. Production still uses the explicit `CLIENT_URL` / `FRONTEND_URL` allowlist.
+
 The default local backend port is `3000`. If you use another backend port, update both frontend values together:
 
 ```bash
