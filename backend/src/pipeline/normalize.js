@@ -1,4 +1,5 @@
 const { dedupeKey } = require("../lib/dedupe");
+const { resolveEntities } = require("./entities");
 
 /** Reject absurd timestamps; default missing/invalid to now. */
 const clampPublishedAt = (value) => {
@@ -23,25 +24,33 @@ const normalize = (connector, assetSymbol, doc) => {
   if (!text) return null;
 
   const symbol = String(assetSymbol).toUpperCase();
+  const title = doc.title || "";
+
+  // Trust the connector's own entity/sentiment hints when present (StockTwits
+  // cashtags, provider ticker tags); otherwise resolve from the text.
+  const { entities, primaryRelevance } = resolveEntities({ title, text }, symbol);
+  const resolvedSymbols = Array.from(new Set([symbol, ...entities.map((e) => e.symbol)]));
 
   return {
     source: connector.id,
     source_type: connector.sourceType,
     external_id: doc.external_id || null,
-    dedupe_key: dedupeKey(symbol, doc.title || text),
+    dedupe_key: dedupeKey(symbol, title || text),
     url: doc.url || null,
     author: {
       handle: doc.author_handle || null,
       followers: doc.author_followers ?? null,
       account_age_days: doc.author_account_age_days ?? null
     },
-    title: doc.title || "",
+    title,
     text,
     lang: doc.lang || "en",
     published_at: clampPublishedAt(doc.published_at),
     ingested_at: new Date(),
     primary_asset: symbol,
-    assets: [symbol],
+    assets: resolvedSymbols,
+    entities,
+    relevance: doc.relevance ?? primaryRelevance,
     engagement: {
       likes: doc.engagement?.likes ?? null,
       shares: doc.engagement?.shares ?? null,

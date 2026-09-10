@@ -10,6 +10,12 @@ const { DATA_SOURCE } = require("../lib/dataSource");
 // window (the scheduler polls every 120s). Older -> "cached".
 const LIVE_FRESHNESS_MS = 10 * 60 * 1000;
 
+// Documents scoring below this are kept in the store but excluded from the
+// sentiment read/trend (off-topic mentions, query noise). `$not $lt` also
+// matches pre-M2 documents that have no relevance score.
+const RELEVANCE_MIN = 0.35;
+const relevanceFilter = { relevance: { $not: { $lt: RELEVANCE_MIN } } };
+
 const isMongoReady = () => mongoose.connection.readyState === 1;
 
 const toMinutes = (range = "1h") => {
@@ -40,7 +46,7 @@ const toItem = (doc) => ({
 });
 
 const readNewsDocs = async (symbol, limit) =>
-  RawDocument.find({ primary_asset: symbol, source_type: "news" })
+  RawDocument.find({ primary_asset: symbol, source_type: "news", ...relevanceFilter })
     .sort({ published_at: -1 })
     .limit(Number(limit))
     .lean();
@@ -109,7 +115,8 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
       $match: {
         primary_asset: assetConfig.symbol,
         source_type: "news",
-        published_at: { $gte: since }
+        published_at: { $gte: since },
+        ...relevanceFilter
       }
     },
     {

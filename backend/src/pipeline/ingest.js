@@ -34,9 +34,16 @@ const ingestAsset = async (assetInput, { limit = 25, types = ["news"], connector
         .filter(Boolean)
         .map(scoreDocument);
 
+      const lowRelevance = docs.filter((d) => (d.relevance ?? 1) < 0.35).length;
       const { upserted } = await persist(docs);
-      perSource[connector.id] = { fetched: raw.length, normalized: docs.length, new: upserted };
+      perSource[connector.id] = {
+        fetched: raw.length,
+        normalized: docs.length,
+        low_relevance: lowRelevance,
+        new: upserted
+      };
       newCount += upserted;
+      if (lowRelevance) metrics.inc(`ingest_low_relevance_total:${connector.id}`, lowRelevance);
       if (raw.length > 0) fetchedAny = true;
 
       metrics.inc(`ingest_docs_total:${connector.id}:ok`, docs.length);

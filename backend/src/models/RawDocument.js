@@ -34,9 +34,24 @@ const rawDocumentSchema = new mongoose.Schema(
     published_at: { type: Date, required: true },
     ingested_at: { type: Date, default: Date.now },
 
-    // Resolved to our asset universe. M1: single asset from the ingest query.
+    // Resolved to our asset universe by the entity-resolution stage.
     primary_asset: { type: String, required: true, uppercase: true, index: true },
     assets: { type: [String], default: [] },
+    entities: {
+      type: [
+        {
+          _id: false,
+          symbol: String,
+          name: String,
+          mentions: Number,
+          salience: Number,
+          cashtag: Boolean
+        }
+      ],
+      default: []
+    },
+    // 0..1 — how much this document is actually about `primary_asset`.
+    relevance: { type: Number, default: null },
 
     engagement: {
       likes: { type: Number, default: null },
