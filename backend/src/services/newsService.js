@@ -50,11 +50,49 @@ const toItem = (doc) => ({
   timestamp: doc.published_at
 });
 
-const readNewsDocs = async (symbol, limit) =>
-  RawDocument.find({ primary_asset: symbol, source_type: "news", ...qualityFilter })
+const readDocsByType = async (symbol, types, limit) =>
+  RawDocument.find({ primary_asset: symbol, source_type: { $in: types }, ...qualityFilter })
     .sort({ published_at: -1 })
     .limit(Number(limit))
     .lean();
+
+const readNewsDocs = (symbol, limit) => readDocsByType(symbol, ["news"], limit);
+
+const freshness = (docs) => {
+  const newest = docs.reduce(
+    (max, d) => Math.max(max, d.ingested_at ? new Date(d.ingested_at).getTime() : 0),
+    0
+  );
+  return Date.now() - newest < LIVE_FRESHNESS_MS ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
+};
+
+/** Retail/forum social sentiment for one asset (StockTwits, Reddit, ...). */
+const getSocialSentiment = async (asset = "BTC", limit = 40) => {
+  const symbol = normalizeAsset(asset).symbol;
+  const empty = {
+    data_source: DATA_SOURCE.UNAVAILABLE,
+    count: 0,
+    score_percent: null,
+    label: null,
+    bull_bear_ratio: null
+  };
+  if (!isMongoReady()) return empty;
+
+  const docs = await readDocsByType(symbol, ["social", "forum"], limit);
+  if (!docs.length) return empty;
+
+  const summary = averageSentiment(docs.map(toItem));
+  const bull = docs.filter((d) => d.sentiment?.label === "positive").length;
+  const bear = docs.filter((d) => d.sentiment?.label === "negative").length;
+
+  return {
+    data_source: freshness(docs),
+    count: docs.length,
+    score_percent: summary.scorePercent,
+    label: summary.label,
+    bull_bear_ratio: bear ? Number((bull / bear).toFixed(2)) : bull ? bull : 1
+  };
+};
 
 // Reads never ingest — the scheduler keeps RawDocument fresh. `refresh` is
 // accepted for backwards compatibility but ignored.
@@ -161,4 +199,4 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
   };
 };
 
-module.exports = { getLatestSentiment, getSentimentTrend, toMinutes };
+module.exports = { getLatestSentiment, getSentimentTrend, getSocialSentiment, toMinutes };

@@ -7,10 +7,11 @@ let ingestAsset;
 let RawDocument;
 let getLatestSentiment;
 let getSentimentTrend;
+let getSocialSentiment;
 
 const fakeConnector = (id, docs, opts = {}) => ({
   id,
-  sourceType: "news",
+  sourceType: opts.sourceType || "news",
   enabled: true,
   fetch: async () => {
     if (opts.throws) throw new Error(opts.throws);
@@ -23,7 +24,8 @@ beforeAll(async () => {
   await mongoose.connect(mongod.getUri());
   ({ ingestAsset } = await import("../../src/pipeline/ingest.js"));
   RawDocument = (await import("../../src/models/RawDocument.js")).default;
-  ({ getLatestSentiment, getSentimentTrend } = await import("../../src/services/newsService.js"));
+  ({ getLatestSentiment, getSentimentTrend, getSocialSentiment } =
+    await import("../../src/services/newsService.js"));
 }, 60000);
 
 afterAll(async () => {
@@ -169,6 +171,45 @@ describe("newsService reads from RawDocument", () => {
 
     const snap = await getLatestSentiment("SOL", 10, false);
     expect(snap.data_source).toBe("cached");
+  });
+
+  it("aggregates social posts separately from news, with a bull/bear ratio", async () => {
+    await ingestAsset("BTC", {
+      limit: 20,
+      types: ["news", "social"],
+      connectors: [
+        fakeConnector(
+          "stocktwits",
+          [
+            {
+              text: "$BTC breaking out, loading up",
+              native_sentiment: "Bullish",
+              provider_meta: { source_name: "StockTwits" }
+            },
+            {
+              text: "$BTC looks weak, taking profits",
+              native_sentiment: "Bearish",
+              provider_meta: { source_name: "StockTwits" }
+            },
+            {
+              text: "$BTC to the moon",
+              native_sentiment: "Bullish",
+              provider_meta: { source_name: "StockTwits" }
+            }
+          ],
+          { sourceType: "social" }
+        )
+      ]
+    });
+
+    const social = await getSocialSentiment("BTC");
+    expect(social.count).toBe(3);
+    expect(social.data_source).toBe("live");
+    expect(social.bull_bear_ratio).toBe(2); // 2 bull / 1 bear
+
+    // the news read is unaffected
+    const news = await getLatestSentiment("BTC", 10, false);
+    expect(news.items.every((i) => !i.text.startsWith("$BTC"))).toBe(true);
   });
 
   it("builds a minute-bucketed trend and ignores docs outside the window", async () => {

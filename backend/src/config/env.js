@@ -10,6 +10,7 @@ const schema = z.object({
   MONGODB_URI: z.string().optional(),
   NEWS_API_KEY: z.string().optional(),
   FINNHUB_API_KEY: z.string().optional(),
+  STOCKTWITS_TOKEN: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   // Live price providers (Binance/Yahoo, both key-free) are ON by default.
   // Set to "false" only as a kill switch.

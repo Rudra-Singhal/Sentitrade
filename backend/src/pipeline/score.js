@@ -11,7 +11,26 @@ try {
   /* keep default */
 }
 
+const NATIVE = { Bullish: 0.5, Bearish: -0.5 };
+
 const scoreDocument = (normDoc) => {
+  const native = normDoc.provider_meta?.native_sentiment;
+
+  // Prefer the platform's own label when it exists (StockTwits Bull/Bear).
+  if (native && native in NATIVE) {
+    const score = NATIVE[native];
+    return {
+      ...normDoc,
+      sentiment: {
+        score,
+        label: score > 0 ? "positive" : "negative",
+        model: "platform_native",
+        model_version: normDoc.source,
+        scored_at: new Date()
+      }
+    };
+  }
+
   const result = analyzeHeadline(normDoc.title || normDoc.text);
   return {
     ...normDoc,

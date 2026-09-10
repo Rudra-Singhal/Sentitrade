@@ -60,7 +60,10 @@ const normalize = (connector, assetSymbol, doc) => {
       upvotes: doc.engagement?.upvotes ?? null,
       views: doc.engagement?.views ?? null
     },
-    provider_meta: doc.provider_meta || {}
+    provider_meta: {
+      ...(doc.provider_meta || {}),
+      ...(doc.native_sentiment ? { native_sentiment: doc.native_sentiment } : {})
+    }
   };
 };
 

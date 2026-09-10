@@ -1,18 +1,33 @@
-const { getLatestSentiment } = require("./newsService");
+const { getLatestSentiment, getSocialSentiment } = require("./newsService");
 const { getCorrelationInsight } = require("./correlationService");
 const { createMarketSummary } = require("./summaryService");
 const { generateTradeSignal } = require("./signalService");
+const { isReal } = require("../lib/dataSource");
 
 const CACHE_MS = 15_000;
 const cache = new Map(); // `${asset}:${range}` -> { at, snapshot }
 
 const compute = async (asset, range) => {
-  const sentiment = await getLatestSentiment(asset, 20, false);
+  const [sentiment, social] = await Promise.all([
+    getLatestSentiment(asset, 20, false),
+    getSocialSentiment(asset)
+  ]);
   const correlation = await getCorrelationInsight(sentiment.asset, range);
   const signal = generateTradeSignal({ sentiment, correlation });
 
+  const divergence =
+    isReal(sentiment.data_source) && social.score_percent !== null
+      ? Number((sentiment.score_percent - social.score_percent).toFixed(1))
+      : null;
+
   return {
-    sentiment: { ...sentiment, signal, summary: createMarketSummary({ sentiment, correlation }) },
+    sentiment: {
+      ...sentiment,
+      signal,
+      summary: createMarketSummary({ sentiment, correlation }),
+      social,
+      news_retail_divergence: divergence
+    },
     correlation: { ...correlation, signal }
   };
 };
