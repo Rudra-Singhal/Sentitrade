@@ -36,6 +36,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      - name: cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongo-bin-${{ runner.os }}
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check

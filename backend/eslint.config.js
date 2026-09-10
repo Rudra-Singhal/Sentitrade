@@ -8,6 +8,11 @@ module.exports = [
   n.configs["flat/recommended-script"],
   prettier,
   {
+    files: ["**/*.mjs"],
+    languageOptions: { ecmaVersion: 2023, sourceType: "module" }
+  },
+  {
+    files: ["**/*.js"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "commonjs"

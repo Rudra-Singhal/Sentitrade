@@ -1,13 +1,11 @@
-const axios = require("axios");
 const mongoose = require("mongoose");
-const NewsSentiment = require("../models/NewsSentiment");
+const RawDocument = require("../models/RawDocument");
 const { normalizeAsset } = require("./assetService");
-const { analyzeHeadline, averageSentiment } = require("./sentimentService");
+const { averageSentiment } = require("./sentimentService");
 const { makeMockNews, makeMockTrend } = require("./mockDataService");
-const { env } = require("../config/env");
+const { ingestAsset } = require("../pipeline/ingest");
 const logger = require("../config/logger");
 const { errInfo } = logger;
-const metrics = require("../lib/metrics");
 const { syntheticOrNull } = require("../lib/fallback");
 const { DATA_SOURCE } = require("../lib/dataSource");
 
@@ -29,112 +27,44 @@ const newestTimestamp = (items = []) => {
   return newest === null ? null : new Date(newest).toISOString();
 };
 
-const buildNewsApiUrl = (assetConfig, limit) => {
-  const params = new URLSearchParams({
-    q: assetConfig.query,
-    language: "en",
-    pageSize: String(limit),
-    sortBy: "publishedAt",
-    apiKey: env.NEWS_API_KEY
-  });
+/** RawDocument -> the flat item shape the API/frontend already expects. */
+const toItem = (doc) => ({
+  _id: String(doc._id),
+  text: doc.title || doc.text,
+  source: doc.provider_meta?.source_name || doc.source,
+  sentiment_score: doc.sentiment?.score ?? 0,
+  sentiment_label: doc.sentiment?.label ?? "neutral",
+  asset: doc.primary_asset,
+  timestamp: doc.published_at
+});
 
-  return `https://newsapi.org/v2/everything?${params.toString()}`;
-};
-
-const mapArticle = (article, assetConfig) => {
-  const text = article.title || article.description || "";
-  const sentiment = analyzeHeadline(text);
-
-  return {
-    text,
-    source: article.source?.name || "NewsAPI",
-    sentiment_score: sentiment.sentiment_score,
-    sentiment_label: sentiment.sentiment_label,
-    asset: assetConfig.symbol,
-    timestamp: article.publishedAt ? new Date(article.publishedAt) : new Date()
-  };
-};
-
-const persistHeadlines = async (items) => {
-  if (!isMongoReady() || !items.length) return items;
-
-  try {
-    await NewsSentiment.bulkWrite(
-      items.map((item) => ({
-        updateOne: {
-          filter: { text: item.text, asset: item.asset },
-          update: { $setOnInsert: item },
-          upsert: true
-        }
-      })),
-      { ordered: false }
-    );
-  } catch (err) {
-    // Duplicate-key races are expected under concurrency; anything else is logged.
-    if (err.code !== 11000) logger.warn({ err: errInfo(err) }, "persistHeadlines bulkWrite issue");
-  }
-
-  return items;
-};
-
-/**
- * @returns {{ items: object[], data_source: string }}
- */
-const fetchNews = async (asset = "BTC", limit = 20) => {
-  const assetConfig = normalizeAsset(asset);
-
-  const degrade = (reason) => {
-    logger.warn({ asset: assetConfig.symbol, reason }, "news feed unavailable");
-    const mock = syntheticOrNull("news", () => makeMockNews(assetConfig, limit));
-    return mock
-      ? { items: mock, data_source: DATA_SOURCE.SIMULATED }
-      : { items: [], data_source: DATA_SOURCE.UNAVAILABLE };
-  };
-
-  if (!env.NEWS_API_KEY) return degrade("no NEWS_API_KEY configured");
-
-  try {
-    const response = await axios.get(buildNewsApiUrl(assetConfig, limit), { timeout: 9000 });
-    const articles = response.data?.articles || [];
-    const mapped = articles
-      .filter((article) => article.title)
-      .map((article) => mapArticle(article, assetConfig));
-
-    if (!mapped.length) return degrade("provider returned no usable articles");
-
-    await persistHeadlines(mapped);
-    metrics.inc("news_fetch_total:ok");
-    metrics.markTimestamp("last_news_fetch_ok_at");
-    return { items: mapped, data_source: DATA_SOURCE.LIVE };
-  } catch (err) {
-    metrics.inc("news_fetch_total:error");
-    logger.warn({ asset: assetConfig.symbol, err: errInfo(err) }, "NewsAPI request failed");
-    return degrade("provider request failed");
-  }
-};
+const readNewsItems = async (symbol, limit) =>
+  RawDocument.find({ primary_asset: symbol, source_type: "news" })
+    .sort({ published_at: -1 })
+    .limit(Number(limit))
+    .lean()
+    .then((docs) => docs.map(toItem));
 
 const getLatestSentiment = async (asset = "BTC", limit = 20, refresh = true) => {
   const assetConfig = normalizeAsset(asset);
-  let items = [];
-  let dataSource = DATA_SOURCE.UNAVAILABLE;
+  const symbol = assetConfig.symbol;
 
-  if (refresh) {
-    const fetched = await fetchNews(assetConfig.symbol, limit);
-    items = fetched.items;
-    dataSource = fetched.data_source;
+  let dataSource = DATA_SOURCE.UNAVAILABLE;
+  let items = [];
+  let fetchedFresh = false;
+
+  if (refresh && isMongoReady()) {
+    try {
+      const result = await ingestAsset(symbol, { limit, types: ["news"] });
+      fetchedFresh = result.fetchedAny;
+    } catch (err) {
+      logger.warn({ asset: symbol, err: errInfo(err) }, "ingest during read failed");
+    }
   }
 
   if (isMongoReady()) {
-    const dbItems = await NewsSentiment.find({ asset: assetConfig.symbol })
-      .sort({ timestamp: -1 })
-      .limit(Number(limit))
-      .lean();
-
-    if (dbItems.length) {
-      // Prefer the store; if we did not just fetch fresh, this is cached data.
-      items = dbItems;
-      if (dataSource !== DATA_SOURCE.LIVE) dataSource = DATA_SOURCE.CACHED;
-    }
+    items = await readNewsItems(symbol, limit);
+    if (items.length) dataSource = fetchedFresh ? DATA_SOURCE.LIVE : DATA_SOURCE.CACHED;
   }
 
   if (!items.length) {
@@ -142,16 +72,13 @@ const getLatestSentiment = async (asset = "BTC", limit = 20, refresh = true) => 
     if (mock) {
       items = mock;
       dataSource = DATA_SOURCE.SIMULATED;
-    } else {
-      items = [];
-      dataSource = DATA_SOURCE.UNAVAILABLE;
     }
   }
 
   const summary = averageSentiment(items);
 
   return {
-    asset: assetConfig.symbol,
+    asset: symbol,
     assetName: assetConfig.displayName,
     score_avg: summary.score,
     score_percent: summary.scorePercent,
@@ -177,18 +104,24 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
   if (!isMongoReady()) return degrade();
 
   const since = new Date(Date.now() - minutes * 60 * 1000);
-  const points = await NewsSentiment.aggregate([
-    { $match: { asset: assetConfig.symbol, timestamp: { $gte: since } } },
+  const points = await RawDocument.aggregate([
+    {
+      $match: {
+        primary_asset: assetConfig.symbol,
+        source_type: "news",
+        published_at: { $gte: since }
+      }
+    },
     {
       $group: {
         _id: {
           $dateToString: {
-            date: "$timestamp",
+            date: "$published_at",
             format: "%Y-%m-%dT%H:%M:00.000Z",
             timezone: "UTC"
           }
         },
-        sentiment_avg: { $avg: "$sentiment_score" },
+        sentiment_avg: { $avg: "$sentiment.score" },
         count: { $sum: 1 }
       }
     },
@@ -205,22 +138,15 @@ const getSentimentTrend = async (asset = "BTC", range = "1h") => {
 
   if (!points.length) return degrade();
 
-  const normalized = points.map((point) => ({
-    ...point,
-    sentiment_percent: Math.round(((point.sentiment_avg + 1) / 2) * 100)
-  }));
-
   return {
     asset: assetConfig.symbol,
     range,
-    points: normalized,
+    points: points.map((p) => ({
+      ...p,
+      sentiment_percent: Math.round(((p.sentiment_avg + 1) / 2) * 100)
+    })),
     data_source: DATA_SOURCE.LIVE
   };
 };
 
-module.exports = {
-  fetchNews,
-  getLatestSentiment,
-  getSentimentTrend,
-  toMinutes
-};
+module.exports = { getLatestSentiment, getSentimentTrend, toMinutes };
