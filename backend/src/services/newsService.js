@@ -78,7 +78,9 @@ const getSocialSentiment = async (asset = "BTC", limit = 40) => {
   };
   if (!isMongoReady()) return empty;
 
-  const docs = await readDocsByType(symbol, ["social", "forum"], limit);
+  const raw = await readDocsByType(symbol, ["social", "forum"], limit * 2);
+  // Drop suspected-bot / spam posts from the aggregate.
+  const docs = raw.filter((d) => (d.author?.quality ?? 1) >= 0.3).slice(0, limit);
   if (!docs.length) return empty;
 
   const summary = averageSentiment(docs.map(toItem));

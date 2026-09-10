@@ -37,7 +37,8 @@ const createProviderClient = (id, { timeout = 9000, retries = 2 } = {}) => {
 
   return {
     id,
-    get: (url, config = {}) => breaker.fire({ ...config, method: "get", url }),
+    get: (url, config = {}) => breaker.fire({ ...config, method: config.method || "get", url }),
+    post: (url, data, config = {}) => breaker.fire({ ...config, method: "post", url, data }),
     breaker,
     isOpen: () => breaker.opened,
     healthcheck: async (url) => {

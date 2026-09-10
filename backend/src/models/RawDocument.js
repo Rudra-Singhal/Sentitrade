@@ -32,7 +32,8 @@ const rawDocumentSchema = new mongoose.Schema(
     author: {
       handle: { type: String, default: null },
       followers: { type: Number, default: null },
-      account_age_days: { type: Number, default: null }
+      account_age_days: { type: Number, default: null },
+      quality: { type: Number, default: 1 } // 0..1, social/forum only (bot heuristic)
     },
 
     title: { type: String, default: "" },

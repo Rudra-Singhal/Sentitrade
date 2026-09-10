@@ -1,6 +1,9 @@
 const { dedupeKey } = require("../lib/dedupe");
 const { resolveEntities } = require("./entities");
+const { authorQuality } = require("./quality");
 const { weightForSource } = require("../config/sources");
+
+const SOCIALISH = new Set(["social", "forum"]);
 
 /** Reject absurd timestamps; default missing/invalid to now. */
 const clampPublishedAt = (value) => {
@@ -41,7 +44,16 @@ const normalize = (connector, assetSymbol, doc) => {
     author: {
       handle: doc.author_handle || null,
       followers: doc.author_followers ?? null,
-      account_age_days: doc.author_account_age_days ?? null
+      account_age_days: doc.author_account_age_days ?? null,
+      quality: SOCIALISH.has(connector.sourceType)
+        ? authorQuality({
+            author: {
+              followers: doc.author_followers,
+              account_age_days: doc.author_account_age_days
+            },
+            text
+          })
+        : 1
     },
     title,
     text,
