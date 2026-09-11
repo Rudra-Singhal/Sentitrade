@@ -99,6 +99,34 @@ describe("socket rooms", () => {
     client.close();
   });
 
+  it("rapid-fire asset:change never leaves a stale/earlier asset as the last delivered update", async () => {
+    const client = await connect();
+    await nextUpdate(client); // initial BTC
+
+    // Fire three switches back-to-back with no waiting in between, so a slow
+    // earlier snapshot could in principle resolve after a faster later one.
+    client.emit("asset:change", { asset: "ETH", range: "1h" });
+    client.emit("asset:change", { asset: "BTC", range: "1h" });
+    client.emit("asset:change", { asset: "ETH", range: "1h" });
+
+    // Drain every update that arrives over a short window and check the
+    // final one settles on ETH (the last request), never an earlier ask.
+    let last = null;
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      try {
+        last = await Promise.race([
+          nextUpdate(client),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("drain-timeout")), 300))
+        ]);
+      } catch {
+        break;
+      }
+    }
+    expect(last?.sentiment?.asset).toBe("ETH");
+    client.close();
+  });
+
   it("rejects an invalid asset:change payload", async () => {
     const client = await connect();
     await nextUpdate(client);

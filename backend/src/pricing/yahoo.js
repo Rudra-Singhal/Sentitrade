@@ -1,6 +1,6 @@
 const { createProviderClient } = require("../lib/httpClient");
 const { DATA_SOURCE } = require("../lib/dataSource");
-const { isUsEquityMarketOpen } = require("../lib/marketCalendar");
+const { isMarketOpen } = require("../lib/marketCalendar");
 
 // Unofficial but widely used and key-free. Wrapped in a breaker; on failure the
 // caller falls back to unavailable (prod) / simulated (dev).
@@ -43,13 +43,14 @@ const yahooProvider = {
 
   async fetch(asset, range, sinceMs) {
     const plan = PLAN[range] || PLAN["1h"];
+    const symbol = asset.yahooSymbol || asset.symbol;
     const params = new URLSearchParams({ interval: plan.interval, range: plan.range });
     const res = await client.get(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}?${params.toString()}`
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${params.toString()}`
     );
     const series = mapChart(res.data, sinceMs);
     // Real data either way; label as delayed when the session is closed (last close).
-    const price_source = isUsEquityMarketOpen() ? DATA_SOURCE.LIVE : DATA_SOURCE.DELAYED;
+    const price_source = isMarketOpen(asset.exchange) ? DATA_SOURCE.LIVE : DATA_SOURCE.DELAYED;
     return { series, price_source };
   },
 

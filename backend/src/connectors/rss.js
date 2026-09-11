@@ -6,15 +6,30 @@ const metrics = require("../lib/metrics");
 
 const parser = new RssParser({ timeout: 9000 });
 
-// Zero-quota baseline. Crypto-focused feeds for now; equity per-ticker RSS is
-// poor, so stocks stay on NewsAPI + Finnhub until M2 entity resolution lands.
+// Zero-quota baseline. Grouped by market — US equities have poor per-ticker
+// RSS so they stay on NewsAPI + Finnhub + GDELT.
 const FEEDS = {
   crypto: [
     { url: "https://www.coindesk.com/arc/outboundfeeds/rss/", name: "CoinDesk" },
     { url: "https://cointelegraph.com/rss", name: "Cointelegraph" },
     { url: "https://decrypt.co/feed", name: "Decrypt" },
     { url: "https://www.theblock.co/rss.xml", name: "The Block" }
+  ],
+  india: [
+    {
+      url: "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+      name: "Economic Times"
+    },
+    { url: "https://www.moneycontrol.com/rss/business.xml", name: "Moneycontrol" },
+    { url: "https://www.livemint.com/rss/markets", name: "LiveMint" },
+    { url: "https://www.business-standard.com/rss/markets-106.rss", name: "Business Standard" }
   ]
+};
+
+const feedGroup = (asset) => {
+  if (asset.type === "crypto") return "crypto";
+  if (asset.exchange === "NSE") return "india";
+  return null;
 };
 
 /** Pure: parsed feed items -> connector docs, filtered by asset mention + window. */
@@ -47,10 +62,10 @@ const rssConnector = {
   sourceType: "news",
   cadenceSeconds: 600,
   enabled: true,
-  appliesTo: (asset) => Boolean(FEEDS[asset.type]),
+  appliesTo: (asset) => Boolean(feedGroup(asset)),
 
   async fetch({ asset, since, limit = 30 }) {
-    const feeds = FEEDS[asset.type] || [];
+    const feeds = FEEDS[feedGroup(asset)] || [];
     const sinceMs = since ? new Date(since).getTime() : Date.now() - 24 * 60 * 60 * 1000;
 
     const settled = await Promise.allSettled(feeds.map((f) => parser.parseURL(f.url)));
@@ -80,3 +95,4 @@ const rssConnector = {
 module.exports = rssConnector;
 module.exports.FEEDS = FEEDS;
 module.exports.selectItems = selectItems;
+module.exports.feedGroup = feedGroup;

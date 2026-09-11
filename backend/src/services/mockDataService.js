@@ -262,7 +262,7 @@ const makeMockPriceSeries = (assetConfig, minutes = 60) => {
       Math.sin((step + phaseOffset) / period) * vol +
       Math.cos((step + phaseOffset) / microPeriod) * (vol * 0.55) +
       step * trendSlope;
-    const price = Number((assetConfig.mockBase * (1 + move)).toFixed(2));
+    const price = Number(((assetConfig.mockBase || 100) * (1 + move)).toFixed(2));
 
     series.push({
       timestamp: new Date(now - index * 60 * 1000).toISOString(),

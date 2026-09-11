@@ -18,28 +18,11 @@ const cached =
     return value;
   };
 
-// Wikipedia article titles for attention tracking.
-const WIKI_ARTICLE = {
-  BTC: "Bitcoin",
-  ETH: "Ethereum",
-  SOL: "Solana_(blockchain_platform)",
-  BNB: "BNB_(cryptocurrency)",
-  XRP: "XRP_Ledger",
-  AAPL: "Apple_Inc.",
-  MSFT: "Microsoft",
-  GOOGL: "Alphabet_Inc.",
-  AMZN: "Amazon_(company)",
-  NVDA: "Nvidia",
-  META: "Meta_Platforms",
-  TSLA: "Tesla,_Inc.",
-  NFLX: "Netflix",
-  AMD: "Advanced_Micro_Devices",
-  INTC: "Intel",
-  JPM: "JPMorgan_Chase",
-  V: "Visa_Inc.",
-  DIS: "The_Walt_Disney_Company",
-  PYPL: "PayPal",
-  UBER: "Uber"
+const { ASSETS } = require("./assetService");
+
+const wikiArticleFor = (assetSymbol) => {
+  const cfg = ASSETS[String(assetSymbol).toUpperCase()];
+  return cfg?.wikiArticle || null;
 };
 
 /** Pure parsers — unit-tested directly. */
@@ -105,7 +88,7 @@ const getFearGreed = async (assetType) => {
 const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, "");
 
 const getAttention = async (assetSymbol) => {
-  const article = WIKI_ARTICLE[assetSymbol];
+  const article = wikiArticleFor(assetSymbol);
   if (!article) return null;
 
   return cached(`wiki:${assetSymbol}`, async () => {

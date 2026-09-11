@@ -1,7 +1,7 @@
 const { normalizeAsset } = require("../services/assetService");
 
 // Assets always kept warm so the dashboard is never cold on first load.
-const SEED = ["BTC", "ETH", "AAPL"];
+const SEED = ["BTC", "ETH", "AAPL", "RELIANCE"];
 
 // symbol -> reference count (number of connected clients viewing it)
 const counts = new Map();
