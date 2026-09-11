@@ -111,11 +111,19 @@ carries a `data_source` label the UI renders as a badge.
 (`id`, `sourceType`, `cadenceSeconds`, `enabled`, `fetch(ctx)`, `healthcheck()`),
 so adding a source touches nothing downstream.
 
-| Connector | Applies to | Key | Notes |
-| --- | --- | --- | --- |
-| `newsapi` | all | `NEWS_API_KEY` | free tier: 100 req/day, delayed articles |
-| `finnhub` | equities | `FINNHUB_API_KEY` | company-news, free 60 req/min |
-| `rss` | crypto | none | CoinDesk / Cointelegraph / Decrypt / The Block, asset-mention filtered |
+| Connector | Type | Applies to | Key | Notes |
+| --- | --- | --- | --- | --- |
+| `newsapi` | news | all | `NEWS_API_KEY` | free tier: 100 req/day, delayed articles |
+| `finnhub` | news | US equities | `FINNHUB_API_KEY` | company-news, free 60 req/min |
+| `gdelt` | news | all | none | GDELT DOC 2.0, free, global coverage (incl. Indian sources); self-throttled — GDELT rate-limits aggressively |
+| `rss` | news | crypto, NSE | none | CoinDesk/Cointelegraph/Decrypt/The Block (crypto) or Economic Times/Moneycontrol/LiveMint/Business Standard (India), asset-mention filtered |
+| `stocktwits` | social | all | none (optional token) | native Bull/Bear labels used ahead of VADER |
+| `reddit` | forum | crypto, US | `REDDIT_CLIENT_ID/SECRET/USERNAME/PASSWORD` | off by default |
+| `twitter` | social | all | `TWITTER_BEARER_TOKEN` or `TWITTERAPI_IO_KEY` | **off by default** — no free tier covers recent search; set either var to enable |
+| `edgar` | filing | US equities | none | SEC filings → structured events (earnings, executive change, …) |
+
+Crypto (25), US equities (40) and NSE-listed Indian equities (40) are all
+supported — see `backend/src/services/assetService.js` for the full list.
 
 Each connector call is retried (exponential backoff, 429-aware) and wrapped in a
 circuit breaker (`opossum`) so a failing provider is skipped for a cooldown.
