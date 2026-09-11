@@ -1,15 +1,10 @@
 import Card from "./Card.jsx";
 
-const symbolMap = {
-  BTC: "BINANCE:BTCUSDT",
-  ETH: "BINANCE:ETHUSDT",
-  AAPL: "NASDAQ:AAPL"
-};
-
-const TradingViewWidget = ({ asset = "BTC" }) => {
+const TradingViewWidget = ({ asset = "BTC", tvSymbol }) => {
+  const symbol = tvSymbol || `NASDAQ:${asset}`;
   const widgetConfig = {
     autosize: true,
-    symbol: symbolMap[asset] || symbolMap.BTC,
+    symbol,
     interval: "15",
     timezone: "Etc/UTC",
     theme: "dark",
@@ -29,7 +24,7 @@ const TradingViewWidget = ({ asset = "BTC" }) => {
   return (
     <Card className="h-[560px] overflow-hidden p-2 lg:h-[690px]">
       <iframe
-        key={asset}
+        key={symbol}
         title={`${asset} TradingView chart`}
         src={src}
         className="h-full w-full rounded-md border-0"

@@ -1,5 +1,10 @@
 import Dashboard from "./pages/Dashboard.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
-const App = () => <Dashboard />;
+const App = () => (
+  <ErrorBoundary>
+    <Dashboard />
+  </ErrorBoundary>
+);
 
 export default App;
