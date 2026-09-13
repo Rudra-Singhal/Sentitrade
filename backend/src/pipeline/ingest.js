@@ -1,7 +1,7 @@
 const { normalizeAsset } = require("../services/assetService");
 const { enabledConnectors } = require("../connectors");
 const { normalize } = require("./normalize");
-const { scoreDocument } = require("./score");
+const { scoreDocuments } = require("./score");
 const { flagNearDuplicates } = require("./dedupeNearby");
 const { persist } = require("./persist");
 const logger = require("../config/logger");
@@ -33,7 +33,7 @@ const ingestAsset = async (assetInput, { limit = 25, types = ["news"], connector
     selected.map((connector) => connector.fetch({ asset, since, limit }))
   );
 
-  const perConnectorDocs = new Map(); // connector.id -> normalized+scored docs
+  const perConnectorDocs = new Map(); // connector.id -> normalized docs
   const perSource = {};
   let fetchedAny = false;
 
@@ -51,14 +51,25 @@ const ingestAsset = async (assetInput, { limit = 25, types = ["news"], connector
 
     const raw = result.value || [];
     if (raw.length > 0) fetchedAny = true;
-    const docs = raw
-      .map((d) => normalize(connector, asset.symbol, d))
-      .filter(Boolean)
-      .map(scoreDocument);
+    const docs = raw.map((d) => normalize(connector, asset.symbol, d)).filter(Boolean);
 
     perConnectorDocs.set(connector.id, docs);
     perSource[connector.id] = { fetched: raw.length, normalized: docs.length };
   });
+
+  // Score every connector's documents in one pass: the sentiment service is a
+  // network hop, so one batched call per ingest cycle beats one per connector.
+  // Order is preserved, so results can be split back out per connector.
+  const order = Array.from(perConnectorDocs.keys());
+  const flat = order.flatMap((id) => perConnectorDocs.get(id));
+  const scored = await scoreDocuments(flat);
+
+  let cursor = 0;
+  for (const id of order) {
+    const count = perConnectorDocs.get(id).length;
+    perConnectorDocs.set(id, scored.slice(cursor, cursor + count));
+    cursor += count;
+  }
 
   // Dedup once across the whole batch, oldest first, so `cluster_id` always
   // points at the earliest-published copy regardless of connector order.
