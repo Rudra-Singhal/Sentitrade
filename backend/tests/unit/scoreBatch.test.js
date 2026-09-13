@@ -1,4 +1,24 @@
 const { scoreDocuments, scoreDocument, MODEL } = require("../../src/pipeline/score");
+const { resolveAsset, normalizeAsset } = require("../../src/services/assetService");
+
+describe("resolveAsset vs normalizeAsset", () => {
+  it("resolveAsset returns null for an unknown symbol instead of silently meaning BTC", () => {
+    // This distinction is not cosmetic: reading the wrong field name
+    // (`doc.asset` instead of `doc.primary_asset`) routed every document
+    // through the crypto model for a while, because the loose lookup turned
+    // `undefined` into Bitcoin without complaint.
+    expect(resolveAsset(undefined)).toBeNull();
+    expect(resolveAsset("")).toBeNull();
+    expect(resolveAsset("XYZFAKE")).toBeNull();
+    expect(normalizeAsset(undefined).symbol).toBe("BTC");
+  });
+
+  it("resolves real symbols case-insensitively across markets", () => {
+    expect(resolveAsset("btc").type).toBe("crypto");
+    expect(resolveAsset("aapl").exchange).toBe("US");
+    expect(resolveAsset(" reliance ").exchange).toBe("NSE");
+  });
+});
 
 // SENTIMENT_SERVICE_URL is unset in the test env, so these exercise the
 // fallback path — the one that must keep working when the service is absent,

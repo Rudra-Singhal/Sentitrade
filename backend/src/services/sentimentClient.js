@@ -106,6 +106,9 @@ const scoreBatch = async (items) => {
           id: item.id,
           text: item.text,
           source_type: item.source_type || "news",
+          // Routing depends on this: crypto news goes to a different model
+          // than equity news, because FinBERT misreads crypto flow language.
+          asset_class: item.asset_class === "crypto" ? "crypto" : "equity",
           ...(item.target ? { target: item.target } : {})
         }))
       });

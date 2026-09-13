@@ -1,4 +1,5 @@
 const { analyzeHeadline } = require("../services/sentimentService");
+const { normalizeAsset } = require("../services/assetService");
 const sentimentClient = require("../services/sentimentClient");
 
 // The in-process fallback, unchanged since M1. From M3 it is the *fallback*:
@@ -71,7 +72,11 @@ const scoreDocuments = async (docs = []) => {
       id: String(index),
       text: doc.title || doc.text || "",
       source_type: doc.source_type || "news",
-      target: doc.asset
+      // `primary_asset` is what normalize() writes — NOT `asset`. Reading the
+      // wrong field here silently routed every document to the crypto model,
+      // because normalizeAsset() defaults an unknown symbol to BTC.
+      asset_class: normalizeAsset(doc.primary_asset).type === "crypto" ? "crypto" : "equity",
+      target: doc.primary_asset
     });
   });
 

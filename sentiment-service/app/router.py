@@ -18,16 +18,38 @@ from .schemas import ScoreItem, ScoreResult
 
 logger = logging.getLogger(__name__)
 
-# source_type -> model directory name under MODEL_DIR.
-# `finbert` is trained on financial reporting; `social` is the Twitter/Reddit
-# register. Filings read like news, so they share the finance model.
-ROUTES: dict[str, str] = {
-    "news": "finbert",
-    "filing": "finbert",
-    "social": "social",
-    "forum": "social",
-    "derived": "finbert",
+# (source_type, asset_class) -> model directory name under MODEL_DIR.
+#
+# The obvious mapping — all news to FinBERT — is measurably wrong for crypto.
+# FinBERT learned from Financial PhraseBank, equity analyst prose that predates
+# crypto ETFs, and scores "ETF outflows accelerate as investors pull $449M" as
+# +0.85 positive. The social model scores the same headline -0.55. So crypto
+# news is routed to the social model, which has seen this vocabulary.
+#
+# Equity news keeps FinBERT: it is sharper there, separating "missed consensus"
+# (-0.96) far more decisively than the social model (-0.74).
+#
+# Numbers from scripts/evaluate.py — rerun it before changing any of this.
+ROUTES: dict[tuple[str, str], str] = {
+    ("news", "equity"): "finbert",
+    ("news", "crypto"): "social",
+    ("filing", "equity"): "finbert",
+    ("filing", "crypto"): "finbert",
+    ("derived", "equity"): "finbert",
+    ("derived", "crypto"): "social",
+    # Retail posts are the social model's native register regardless of asset.
+    ("social", "equity"): "social",
+    ("social", "crypto"): "social",
+    ("forum", "equity"): "social",
+    ("forum", "crypto"): "social",
 }
+
+DEFAULT_SLUG = "finbert"
+
+
+def route_for(source_type: str, asset_class: str = "equity") -> str:
+    return ROUTES.get((source_type, asset_class), DEFAULT_SLUG)
+
 
 _models: dict[str, OnnxSentimentModel] = {}
 _loaded = False
@@ -38,7 +60,7 @@ def load_models() -> None:
     skipped — the service still serves, via VADER, and says so in /health."""
     global _loaded
     _models.clear()
-    for slug in sorted(set(ROUTES.values())):
+    for slug in sorted(set(ROUTES.values()) | {DEFAULT_SLUG}):
         model = OnnxSentimentModel.load(
             settings.model_dir / slug, threads=settings.threads, max_tokens=settings.max_tokens
         )
@@ -56,8 +78,8 @@ def load_models() -> None:
         logger.warning("no ONNX models loaded — every document will be scored by VADER")
 
 
-def model_for(source_type: str) -> OnnxSentimentModel | None:
-    return _models.get(ROUTES.get(source_type, "finbert"))
+def model_for(source_type: str, asset_class: str = "equity") -> OnnxSentimentModel | None:
+    return _models.get(route_for(source_type, asset_class))
 
 
 def loaded_models() -> dict[str, OnnxSentimentModel]:
@@ -73,7 +95,7 @@ def score_items(items: list[ScoreItem]) -> list[ScoreResult]:
     documents routed to it rather than once per document."""
     by_model: dict[str | None, list[int]] = defaultdict(list)
     for index, item in enumerate(items):
-        model = model_for(item.source_type)
+        model = model_for(item.source_type, item.asset_class)
         by_model[model.name if model else None].append(index)
 
     results: list[ScoreResult | None] = [None] * len(items)

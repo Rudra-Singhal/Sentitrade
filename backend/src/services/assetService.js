@@ -304,10 +304,20 @@ const LIST = [
 
 const ASSETS = Object.fromEntries(LIST.map((a) => [a.symbol, a]));
 
-const normalizeAsset = (asset = "BTC") => {
-  const key = String(asset).trim().toUpperCase();
-  return ASSETS[key] || ASSETS.BTC;
+/**
+ * Strict lookup: returns null for anything not in the universe.
+ *
+ * Prefer this internally. `normalizeAsset` silently substitutes BTC for an
+ * unknown symbol, which is convenient at the edge of the system and dangerous
+ * inside it — a typo'd or wrong-cased field name reads as "Bitcoin" rather than
+ * as an error, and every document downstream is quietly mis-attributed.
+ */
+const resolveAsset = (asset) => {
+  if (!asset) return null;
+  return ASSETS[String(asset).trim().toUpperCase()] || null;
 };
+
+const normalizeAsset = (asset = "BTC") => resolveAsset(asset) || ASSETS.BTC;
 
 const listAssets = () =>
   LIST.map(({ symbol, displayName, type, exchange, tradingViewSymbol }) => ({
@@ -333,4 +343,12 @@ const mentionsAsset = (text, assetConfig) => {
   );
 };
 
-module.exports = { ASSETS, LIST, normalizeAsset, listAssets, keywordsFor, mentionsAsset };
+module.exports = {
+  ASSETS,
+  LIST,
+  normalizeAsset,
+  resolveAsset,
+  listAssets,
+  keywordsFor,
+  mentionsAsset
+};

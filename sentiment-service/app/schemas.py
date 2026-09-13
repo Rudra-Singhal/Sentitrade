@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 # Matches RawDocument.source_type in the Node model.
 SourceType = Literal["news", "social", "forum", "filing", "derived"]
+# Mirrors the `type` field on an asset in backend/src/services/assetService.js.
+AssetClass = Literal["crypto", "equity"]
 Label = Literal["positive", "negative", "neutral"]
 
 
@@ -21,7 +23,11 @@ class ScoreItem(BaseModel):
     id: str
     text: str = Field(min_length=1)
     source_type: SourceType = "news"
-    # The resolved asset this document is about. Present from M3 phase 4
+    # The asset's market. Routing uses this: FinBERT was trained on equity
+    # analyst prose and measurably misreads crypto flow language, so crypto
+    # news goes to the social model instead. See scripts/evaluate.py.
+    asset_class: AssetClass = "equity"
+    # The resolved asset this document is about. Present from M3 phase 5
     # (target-aware scoring); ignored until then.
     target: str | None = None
 

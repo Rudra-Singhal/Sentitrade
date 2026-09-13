@@ -35,9 +35,24 @@ def test_softmax_rows_sum_to_one():
     assert not np.isnan(probs).any()
 
 
-def test_news_and_social_route_to_different_models():
-    assert router.ROUTES["news"] == router.ROUTES["filing"] == "finbert"
-    assert router.ROUTES["social"] == router.ROUTES["forum"] == "social"
+def test_equity_news_and_retail_social_route_to_different_models():
+    assert router.route_for("news", "equity") == "finbert"
+    assert router.route_for("filing", "equity") == "finbert"
+    assert router.route_for("social", "equity") == "social"
+    assert router.route_for("forum", "crypto") == "social"
+
+
+def test_crypto_news_avoids_finbert():
+    # Measured, not stylistic: FinBERT scores "ETF outflows accelerate as
+    # investors pull $449M" at +0.85 and the social model at -0.55.
+    # See scripts/evaluate.py.
+    assert router.route_for("news", "crypto") == "social"
+    assert router.route_for("news", "equity") == "finbert"
+
+
+def test_unknown_route_falls_back_to_a_real_model():
+    assert router.route_for("telepathy", "equity") == router.DEFAULT_SLUG
+    assert router.route_for("news", "commodities") == router.DEFAULT_SLUG
 
 
 def test_uses_the_loaded_model_when_present(monkeypatch):

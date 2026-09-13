@@ -1,20 +1,46 @@
 """End-to-end tests through the real FastAPI app.
 
-These run without any ONNX model present, which is the degraded path — that is
-deliberate: the fallback is the behaviour most likely to be silently broken, so
-it is the one that must be covered in CI where no 400MB model can live.
+These deliberately run with NO ONNX model loaded — the degraded path is the one
+most likely to break silently, and it is the only path CI can exercise, since a
+900MB pair of models cannot live in the repo.
+
+`MODEL_DIR` is pointed at an empty directory rather than relying on models
+being absent: on a developer machine that has run `export_models.py` they are
+very much present, and a test that changes behaviour based on what is sitting
+on disk is not a test.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+
+@pytest.fixture(scope="module")
+def client(tmp_path_factory, monkeypatch_module):
+    empty = tmp_path_factory.mktemp("no-models")
+    monkeypatch_module.setenv("MODEL_DIR", str(empty))
+
+    # Settings is a frozen dataclass read at import time, so swap in a replaced
+    # copy rather than mutating the original.
+    import dataclasses
+
+    import app.config
+    import app.router
+    from app.main import app as fastapi_app
+
+    empty_settings = dataclasses.replace(app.config.settings, model_dir=empty)
+    monkeypatch_module.setattr(app.config, "settings", empty_settings)
+    monkeypatch_module.setattr(app.router, "settings", empty_settings)
+
+    with TestClient(fastapi_app) as c:
+        yield c
 
 
 @pytest.fixture(scope="module")
-def client():
-    with TestClient(app) as c:
-        yield c
+def monkeypatch_module():
+    """module-scoped monkeypatch (the built-in fixture is function-scoped)."""
+    mp = pytest.MonkeyPatch()
+    yield mp
+    mp.undo()
 
 
 def test_health_reports_degraded_without_models(client):

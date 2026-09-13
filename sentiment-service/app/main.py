@@ -42,23 +42,29 @@ app = FastAPI(
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     models = model_router.loaded_models()
+
+    def route_label(key: tuple[str, str]) -> str:
+        source_type, asset_class = key
+        return f"{source_type}/{asset_class}"
+
     infos = [
         ModelInfo(
             name=model.name,
             version=model.version,
             loaded=True,
-            handles=sorted(k for k, v in model_router.ROUTES.items() if v == slug),
+            handles=sorted(route_label(k) for k, v in model_router.ROUTES.items() if v == slug),
         )
         for slug, model in sorted(models.items())
     ]
     # VADER is always present, and always listed, so an operator reading
     # /health can see exactly what would score an incoming document.
+    covered = {h for i in infos for h in i.handles}
     infos.append(
         ModelInfo(
             name=vader.NAME,
             version=vader.VERSION,
             loaded=True,
-            handles=sorted(set(model_router.ROUTES) - {h for i in infos for h in i.handles}),
+            handles=sorted(route_label(k) for k in model_router.ROUTES if route_label(k) not in covered),
         )
     )
     return HealthResponse(
