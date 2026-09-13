@@ -65,7 +65,14 @@ describe("sentimentClient.mapResults", () => {
 
   it("keeps the degraded flag so honesty survives the hop", () => {
     const byId = mapResults([
-      { id: "a", score: 0.1, label: "positive", model: "vader", model_version: "3.3.2", degraded: true }
+      {
+        id: "a",
+        score: 0.1,
+        label: "positive",
+        model: "vader",
+        model_version: "3.3.2",
+        degraded: true
+      }
     ]);
     expect(byId.get("a").degraded).toBe(true);
   });

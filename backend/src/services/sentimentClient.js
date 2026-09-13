@@ -23,7 +23,9 @@ const FAILURE_THRESHOLD = 3;
 const COOLDOWN_MS = 60_000;
 
 const baseUrl = (env.SENTIMENT_SERVICE_URL || "").replace(/\/$/, "");
-const client = baseUrl ? createProviderClient("sentiment", { timeout: TIMEOUT_MS, retries: 0 }) : null;
+const client = baseUrl
+  ? createProviderClient("sentiment", { timeout: TIMEOUT_MS, retries: 0 })
+  : null;
 
 let consecutiveFailures = 0;
 let openedAt = 0;

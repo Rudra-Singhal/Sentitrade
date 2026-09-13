@@ -48,6 +48,25 @@ jobs:
       - name: audit (high+)
         run: npm audit --audit-level=high
 
+  sentiment-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sentiment-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: sentiment-service/requirements-dev.txt
+      # Serving + dev deps only. The export stack (torch, ~2.5GB) is never
+      # installed here — CI exercises the VADER fallback path, which is the
+      # state the service ships in until models are exported.
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check app scripts tests
+      - run: python -m pytest -q
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
