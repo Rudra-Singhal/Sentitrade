@@ -17,11 +17,11 @@ const symbolMap = {
   META: "NASDAQ:META",
   TSLA: "NASDAQ:TSLA",
   NFLX: "NASDAQ:NFLX",
-  AMD:  "NASDAQ:AMD",
+  AMD: "NASDAQ:AMD",
   INTC: "NASDAQ:INTC",
-  JPM:  "NYSE:JPM",
-  V:    "NYSE:V",
-  DIS:  "NYSE:DIS",
+  JPM: "NYSE:JPM",
+  V: "NYSE:V",
+  DIS: "NYSE:DIS",
   PYPL: "NASDAQ:PYPL",
   UBER: "NYSE:UBER"
 };

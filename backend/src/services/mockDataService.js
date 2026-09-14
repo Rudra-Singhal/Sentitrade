@@ -48,7 +48,11 @@ const headlineBank = {
     ["Apple expands AI features across devices to boost upgrade demand", "Bloomberg", 9],
     ["Investors watch iPhone demand signals as Apple stock consolidates", "MarketWatch", 6],
     ["Supply chain checks show stable Apple component orders", "Barron's", 3],
-    ["Apple faces pressure from cautious consumer spending environment", "The Wall Street Journal", 1]
+    [
+      "Apple faces pressure from cautious consumer spending environment",
+      "The Wall Street Journal",
+      1
+    ]
   ],
   MSFT: [
     ["Microsoft Azure growth accelerates on enterprise AI adoption", "CNBC", 15],
@@ -118,7 +122,11 @@ const headlineBank = {
     ["Intel wins US government foundry contract boosting domestic manufacturing", "CNBC", 16],
     ["INTC restructuring plan reduces costs and improves near-term profitability", "Bloomberg", 12],
     ["Intel 18A process node milestone raises competitive hopes", "Reuters", 9],
-    ["Market share losses in server CPU segment continue to pressure Intel", "The Wall Street Journal", 6],
+    [
+      "Market share losses in server CPU segment continue to pressure Intel",
+      "The Wall Street Journal",
+      6
+    ],
     ["Analysts mixed on Intel turnaround timeline and execution ability", "Barron's", 3],
     ["Intel stock falls on weak consumer PC demand outlook", "MarketWatch", 1]
   ],
@@ -126,7 +134,11 @@ const headlineBank = {
     ["JPMorgan posts record quarterly profit on solid investment banking fees", "CNBC", 14],
     ["Jamie Dimon signals cautious macro outlook despite strong results", "Bloomberg", 10],
     ["JPM benefits from higher for longer rate environment expanding NIM", "Reuters", 7],
-    ["Credit loss provisions rise as consumer credit quality moderates", "The Wall Street Journal", 4],
+    [
+      "Credit loss provisions rise as consumer credit quality moderates",
+      "The Wall Street Journal",
+      4
+    ],
     ["Analysts maintain overweight on JPMorgan citing fortress balance sheet", "Barron's", 2],
     ["JPM dips as broader financials sector faces profit-taking", "MarketWatch", 1]
   ],
@@ -134,7 +146,11 @@ const headlineBank = {
     ["Visa reports record cross-border transaction volumes this quarter", "CNBC", 15],
     ["Travel spending recovery continues to lift Visa revenue growth", "Bloomberg", 11],
     ["Visa expands digital wallet partnerships in emerging markets", "Reuters", 8],
-    ["Regulatory risk around Visa's proposed Discover merger overhang persists", "The Wall Street Journal", 5],
+    [
+      "Regulatory risk around Visa's proposed Discover merger overhang persists",
+      "The Wall Street Journal",
+      5
+    ],
     ["Analysts bullish on Visa long-term given global cashless tailwind", "Barron's", 3],
     ["V stock consolidates after strong multi-week upward trend", "MarketWatch", 1]
   ],
@@ -142,7 +158,11 @@ const headlineBank = {
     ["Disney streaming segment turns profitable ahead of schedule", "CNBC", 14],
     ["ESPN restructuring plan boosts investor confidence in Disney strategy", "Bloomberg", 11],
     ["Disney parks revenue continues to grow driven by international demand", "Reuters", 8],
-    ["Streaming content costs remain elevated weighing on DIS free cash flow", "The Wall Street Journal", 5],
+    [
+      "Streaming content costs remain elevated weighing on DIS free cash flow",
+      "The Wall Street Journal",
+      5
+    ],
     ["Board backs Bob Iger's restructuring amid activist investor pressure", "Barron's", 3],
     ["Disney stock slips after mixed quarterly earnings report", "MarketWatch", 1]
   ],
@@ -150,7 +170,11 @@ const headlineBank = {
     ["PayPal announces share buyback programme lifting investor confidence", "CNBC", 14],
     ["New CEO's strategy update reassures Wall Street on PayPal growth path", "Bloomberg", 10],
     ["PayPal Venmo monetisation accelerates with business account expansion", "Reuters", 7],
-    ["Competition from Apple Pay and Google Wallet intensifies for PayPal", "The Wall Street Journal", 4],
+    [
+      "Competition from Apple Pay and Google Wallet intensifies for PayPal",
+      "The Wall Street Journal",
+      4
+    ],
     ["Analysts cautiously optimistic on PayPal following activist engagement", "Barron's", 2],
     ["PYPL stock falls on weaker than expected active account trends", "MarketWatch", 1]
   ],
@@ -199,8 +223,8 @@ const makeMockTrend = (assetConfig, minutes = 60) => {
 
   // Unique phase, period and bias per asset so sentiment_change truly differs
   const phaseOffset = (seed % 30) * 0.21;
-  const period = 4 + (seed % 8);           // wave period 4–11 minutes
-  const microPeriod = 2 + (seed % 5);      // micro period 2–6 minutes
+  const period = 4 + (seed % 8); // wave period 4–11 minutes
+  const microPeriod = 2 + (seed % 5); // micro period 2–6 minutes
   const bias = ((seed % 40) - 20) * 0.006; // -0.12 to +0.12
   const waveScale = 0.12 + (seed % 12) * 0.018;
 
@@ -227,8 +251,8 @@ const makeMockPriceSeries = (assetConfig, minutes = 60) => {
   const series = [];
   const seed = assetSeed(assetConfig.symbol);
   const phaseOffset = (seed % 25) * 0.25;
-  const period = 5 + (seed % 7);           // wave period 5–11
-  const microPeriod = 3 + (seed % 6);      // micro period 3–8
+  const period = 5 + (seed % 7); // wave period 5–11
+  const microPeriod = 3 + (seed % 6); // micro period 3–8
   const trendSlope = ((seed % 40) - 20) * 0.00001; // -0.0002 to +0.0002 drift
 
   for (let index = minutes - 1; index >= 0; index -= 1) {

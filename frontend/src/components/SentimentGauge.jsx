@@ -23,7 +23,9 @@ const SentimentGauge = ({ data, loading }) => {
     <Card className="p-5">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Sentiment</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Sentiment
+          </p>
           <h2 className="mt-1 text-xl font-bold text-white">{data?.asset || "BTC"} News Tone</h2>
           <DataSourceBadge source={data?.data_source} asOf={data?.as_of} className="mt-2" />
         </div>
@@ -33,8 +35,20 @@ const SentimentGauge = ({ data, loading }) => {
       </div>
 
       <div className="relative mx-auto h-44 w-44">
-        <svg viewBox="0 0 180 180" className="-rotate-90" role="img" aria-label={`Sentiment ${unavailable ? "unavailable" : `${score} percent, ${label}`}`}>
-          <circle cx="90" cy="90" r="72" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
+        <svg
+          viewBox="0 0 180 180"
+          className="-rotate-90"
+          role="img"
+          aria-label={`Sentiment ${unavailable ? "unavailable" : `${score} percent, ${label}`}`}
+        >
+          <circle
+            cx="90"
+            cy="90"
+            r="72"
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth="14"
+          />
           <circle
             cx="90"
             cy="90"
@@ -48,7 +62,9 @@ const SentimentGauge = ({ data, loading }) => {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-extrabold ${unavailable ? "text-slate-500" : styles.color}`}>
+          <span
+            className={`text-4xl font-extrabold ${unavailable ? "text-slate-500" : styles.color}`}
+          >
             {loading ? "--" : unavailable ? "—" : `${score}%`}
           </span>
           <span className="mt-1 rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase text-slate-300">

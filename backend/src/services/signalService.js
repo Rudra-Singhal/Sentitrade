@@ -57,8 +57,8 @@ const generateTradeSignal = ({ sentiment, correlation }) => {
 
   const stats = getHeadlineStats(items);
   const sentimentPercent = sentiment?.score_percent ?? 50;
-  const sentimentChange = correlationUsable ? correlation?.sentiment_change ?? 0 : 0;
-  const priceChange = correlationUsable ? correlation?.price_change ?? 0 : 0;
+  const sentimentChange = correlationUsable ? (correlation?.sentiment_change ?? 0) : 0;
+  const priceChange = correlationUsable ? (correlation?.price_change ?? 0) : 0;
   const reasons = [];
   let score = 0;
 
@@ -85,16 +85,52 @@ const generateTradeSignal = ({ sentiment, correlation }) => {
   if (score >= 4) signal = "BUY";
   if (score <= -4) signal = "SELL";
 
-  pushReason(reasons, sentimentPercent >= 55, `Overall news tone is constructive at ${sentimentPercent}%.`);
+  pushReason(
+    reasons,
+    sentimentPercent >= 55,
+    `Overall news tone is constructive at ${sentimentPercent}%.`
+  );
   pushReason(reasons, sentimentPercent <= 45, `Overall news tone is weak at ${sentimentPercent}%.`);
-  pushReason(reasons, stats.positiveRatio >= 55, `${stats.positiveRatio}% of recent headlines read positive.`);
-  pushReason(reasons, stats.negativeRatio >= 45, `${stats.negativeRatio}% of recent headlines read negative.`);
-  pushReason(reasons, correlationUsable && sentimentChange >= 3, `News tone improved by ${sentimentChange} points this window.`);
-  pushReason(reasons, correlationUsable && sentimentChange <= -3, `News tone fell by ${Math.abs(sentimentChange)} points this window.`);
-  pushReason(reasons, correlationUsable && priceChange >= 0.75, `Price is up ${priceChange}% in the selected window.`);
-  pushReason(reasons, correlationUsable && priceChange <= -0.75, `Price is down ${Math.abs(priceChange)}% in the selected window.`);
-  pushReason(reasons, !correlationUsable, "Price data is unavailable, so only news tone is considered.");
-  pushReason(reasons, signal === "HOLD", "Signals are mixed or not strong enough to lean either way.");
+  pushReason(
+    reasons,
+    stats.positiveRatio >= 55,
+    `${stats.positiveRatio}% of recent headlines read positive.`
+  );
+  pushReason(
+    reasons,
+    stats.negativeRatio >= 45,
+    `${stats.negativeRatio}% of recent headlines read negative.`
+  );
+  pushReason(
+    reasons,
+    correlationUsable && sentimentChange >= 3,
+    `News tone improved by ${sentimentChange} points this window.`
+  );
+  pushReason(
+    reasons,
+    correlationUsable && sentimentChange <= -3,
+    `News tone fell by ${Math.abs(sentimentChange)} points this window.`
+  );
+  pushReason(
+    reasons,
+    correlationUsable && priceChange >= 0.75,
+    `Price is up ${priceChange}% in the selected window.`
+  );
+  pushReason(
+    reasons,
+    correlationUsable && priceChange <= -0.75,
+    `Price is down ${Math.abs(priceChange)}% in the selected window.`
+  );
+  pushReason(
+    reasons,
+    !correlationUsable,
+    "Price data is unavailable, so only news tone is considered."
+  );
+  pushReason(
+    reasons,
+    signal === "HOLD",
+    "Signals are mixed or not strong enough to lean either way."
+  );
 
   return {
     signal,

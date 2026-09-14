@@ -10,13 +10,17 @@ const tagClasses = {
 };
 
 const formatTime = (timestamp) =>
-  new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
+  new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(
+    new Date(timestamp)
+  );
 
 const NewsFeed = ({ items = [], loading, source }) => (
   <Card className="p-5">
     <div className="mb-4 flex items-start justify-between">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Headlines</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+          Headlines
+        </p>
         <h2 className="mt-1 text-xl font-bold text-white">Market Tape</h2>
         <DataSourceBadge source={source} className="mt-2" />
       </div>

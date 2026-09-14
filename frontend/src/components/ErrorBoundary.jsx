@@ -12,7 +12,6 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     // Console only for M0; a real error tracker (Sentry) is wired in M1.
-    // eslint-disable-next-line no-console
     console.error("Dashboard crashed:", error, info?.componentStack);
   }
 

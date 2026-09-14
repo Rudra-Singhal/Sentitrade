@@ -1,12 +1,13 @@
 const { Server } = require("socket.io");
 const { z } = require("zod");
-const { getLatestSentiment } = require("./newsService");
-const { getCorrelationInsight } = require("./correlationService");
-const { createMarketSummary } = require("./summaryService");
-const { generateTradeSignal } = require("./signalService");
+const { getSnapshot } = require("./snapshotService");
 const { isOriginAllowed } = require("../config/cors");
+const activeAssets = require("../jobs/activeAssets");
+const { ingestNow } = require("../jobs/scheduler");
 const logger = require("../config/logger");
 const { errInfo } = logger;
+
+const BROADCAST_MS = 30_000;
 
 const changeSchema = z.object({
   asset: z
@@ -15,50 +16,39 @@ const changeSchema = z.object({
     .min(1)
     .max(10)
     .regex(/^[A-Za-z0-9]+$/)
-    .transform((value) => value.toUpperCase())
+    .transform((v) => v.toUpperCase())
     .optional(),
   range: z.enum(["5m", "1h", "24h"]).optional()
 });
+
+const roomKey = (asset, range) => `${asset}:${range}`;
+const isRoomKey = (name) => name.includes(":");
 
 const initSocket = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
       origin(origin, callback) {
-        if (isOriginAllowed(origin)) {
-          callback(null, true);
-          return;
-        }
+        if (isOriginAllowed(origin)) return callback(null, true);
         callback(new Error(`Socket CORS blocked origin: ${origin}`));
       },
       methods: ["GET", "POST"]
     }
   });
 
-  const emitSnapshot = async (target, { asset = "BTC", range = "1h" } = {}) => {
-    const sentiment = await getLatestSentiment(asset, 20, true);
-    const correlation = await getCorrelationInsight(asset, range);
-    const signal = generateTradeSignal({ sentiment, correlation });
-
-    target.emit("sentiment:update", {
-      sentiment: {
-        ...sentiment,
-        signal,
-        summary: createMarketSummary({ sentiment, correlation })
-      },
-      correlation: { ...correlation, signal }
-    });
+  const sendSnapshot = async (target, asset, range, opts) => {
+    try {
+      target.emit("sentiment:update", await getSnapshot(asset, range, opts));
+    } catch (err) {
+      logger.warn({ asset, range, err: errInfo(err) }, "socket snapshot failed");
+      if (target.emit) target.emit("sentiment:error", "Unable to build market snapshot");
+    }
   };
 
   io.on("connection", (socket) => {
     const state = { asset: "BTC", range: "1h" };
-
-    const safeEmit = () =>
-      emitSnapshot(socket, state).catch((err) => {
-        logger.warn({ err: errInfo(err) }, "socket snapshot failed");
-        socket.emit("sentiment:error", "Unable to build market snapshot");
-      });
-
-    safeEmit();
+    socket.join(roomKey(state.asset, state.range));
+    activeAssets.track(state.asset);
+    sendSnapshot(socket, state.asset, state.range);
 
     socket.on("asset:change", (payload) => {
       const parsed = changeSchema.safeParse(payload || {});
@@ -66,14 +56,45 @@ const initSocket = (httpServer) => {
         socket.emit("sentiment:error", "Invalid asset:change payload");
         return;
       }
+
+      const prev = { ...state };
       if (parsed.data.asset) state.asset = parsed.data.asset;
       if (parsed.data.range) state.range = parsed.data.range;
-      safeEmit();
+
+      if (prev.asset !== state.asset || prev.range !== state.range) {
+        socket.leave(roomKey(prev.asset, prev.range));
+        socket.join(roomKey(state.asset, state.range));
+      }
+      if (prev.asset !== state.asset) {
+        activeAssets.untrack(prev.asset);
+        activeAssets.track(state.asset);
+        ingestNow(state.asset); // fire and forget — get this asset warm
+      }
+
+      sendSnapshot(socket, state.asset, state.range);
     });
 
-    const interval = setInterval(safeEmit, 30000);
-    socket.on("disconnect", () => clearInterval(interval));
+    socket.on("disconnect", () => activeAssets.untrack(state.asset));
   });
+
+  // One server-wide broadcaster: compute each active room's snapshot once,
+  // fan it out. Replaces the old per-connection 30s timer.
+  const broadcast = async () => {
+    const rooms = io.sockets.adapter.rooms;
+    for (const [room, members] of rooms) {
+      if (!isRoomKey(room) || members.size === 0) continue;
+      const [asset, range] = room.split(":");
+      try {
+        io.to(room).emit("sentiment:update", await getSnapshot(asset, range, { fresh: true }));
+      } catch (err) {
+        logger.warn({ room, err: errInfo(err) }, "broadcast failed");
+      }
+    }
+  };
+
+  const timer = setInterval(broadcast, BROADCAST_MS);
+  timer.unref?.();
+  io.stopBroadcast = () => clearInterval(timer);
 
   return io;
 };

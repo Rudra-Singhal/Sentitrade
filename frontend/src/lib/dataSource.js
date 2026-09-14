@@ -30,9 +30,17 @@ export const describeSource = (label) => {
     case DATA_SOURCE.DELAYED:
       return { text: "Delayed", tone: "info", help: "Real data, but the provider lags real time." };
     case DATA_SOURCE.CACHED:
-      return { text: "Cached", tone: "info", help: "Real data from our store, not refreshed this cycle." };
+      return {
+        text: "Cached",
+        tone: "info",
+        help: "Real data from our store, not refreshed this cycle."
+      };
     case DATA_SOURCE.SIMULATED:
-      return { text: "Simulated", tone: "warning", help: "Synthetic demo data — not real market data." };
+      return {
+        text: "Simulated",
+        tone: "warning",
+        help: "Synthetic demo data — not real market data."
+      };
     case DATA_SOURCE.UNAVAILABLE:
       return { text: "Unavailable", tone: "danger", help: "No live data available right now." };
     default:

@@ -36,9 +36,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      - name: cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongo-bin-${{ runner.os }}
       - run: npm ci
-      - name: syntax check
-        run: find src -name "*.js" -print0 | xargs -0 -n1 node --check
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
       - name: audit (high+)
         run: npm audit --audit-level=high
 
@@ -55,6 +61,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
       - run: npm run build
       - name: audit (high+)
         run: npm audit --audit-level=high

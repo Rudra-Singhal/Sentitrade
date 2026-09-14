@@ -68,7 +68,7 @@ const ASSETS = {
     tradingViewSymbol: "NASDAQ:MSFT",
     type: "stock",
     mockBase: 415,
-    mockVolatility: 0.010
+    mockVolatility: 0.01
   },
   GOOGL: {
     symbol: "GOOGL",
@@ -131,7 +131,7 @@ const ASSETS = {
     tradingViewSymbol: "NASDAQ:AMD",
     type: "stock",
     mockBase: 170,
-    mockVolatility: 0.020
+    mockVolatility: 0.02
   },
   INTC: {
     symbol: "INTC",
@@ -196,4 +196,32 @@ const normalizeAsset = (asset = "BTC") => {
 
 const listAssets = () => Object.values(ASSETS);
 
-module.exports = { ASSETS, normalizeAsset, listAssets };
+// Extra name variants used for keyword-matching free-text feeds (RSS).
+// A proper per-asset gazetteer (cashtags, slang, misspellings, products,
+// executives) arrives in M2 entity resolution.
+const ALIASES = {
+  BTC: ["bitcoin", "btc"],
+  ETH: ["ethereum", "ether", "eth"],
+  SOL: ["solana", "sol"],
+  BNB: ["bnb", "binance coin"],
+  XRP: ["xrp", "ripple"]
+};
+
+/** Lowercased keyword set for matching an asset in free text. */
+const keywordsFor = (assetConfig) => {
+  const base = [assetConfig.symbol, assetConfig.displayName]
+    .filter(Boolean)
+    .map((s) => s.toLowerCase());
+  return Array.from(new Set([...base, ...(ALIASES[assetConfig.symbol] || [])]));
+};
+
+const mentionsAsset = (text, assetConfig) => {
+  const haystack = String(text || "").toLowerCase();
+  return keywordsFor(assetConfig).some((kw) =>
+    new RegExp(`(^|[^a-z0-9])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`).test(
+      haystack
+    )
+  );
+};
+
+module.exports = { ASSETS, normalizeAsset, listAssets, keywordsFor, mentionsAsset };

@@ -37,7 +37,7 @@ const isOriginAllowed = (origin) => {
   try {
     const url = new URL(origin);
     return url.protocol === "http:" && url.port === "5173" && isPrivateNetworkHost(url.hostname);
-  } catch (_error) {
+  } catch {
     return false;
   }
 };

@@ -9,11 +9,13 @@ const schema = z.object({
   FRONTEND_URL: z.string().optional(),
   MONGODB_URI: z.string().optional(),
   NEWS_API_KEY: z.string().optional(),
-  ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("false"),
+  FINNHUB_API_KEY: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
+  // Live price providers (Binance/Yahoo, both key-free) are ON by default.
+  // Set to "false" only as a kill switch.
+  ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("true"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
-  LOG_LEVEL: z
-    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
-    .default("info")
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
 });
 
 const parsed = schema.safeParse(process.env);
@@ -38,9 +40,7 @@ if (isProd) {
   if (!env.CLIENT_URL && !env.FRONTEND_URL) missing.push("CLIENT_URL or FRONTEND_URL");
 
   if (missing.length) {
-    console.error(
-      `Missing required production environment variables: ${missing.join(", ")}`
-    );
+    console.error(`Missing required production environment variables: ${missing.join(", ")}`);
     process.exit(1);
   }
 }
@@ -50,5 +50,5 @@ module.exports = {
   isProd,
   isTest,
   isDev,
-  livePriceEnabled: env.ENABLE_LIVE_PRICE_API === "true"
+  livePriceEnabled: env.ENABLE_LIVE_PRICE_API !== "false"
 };

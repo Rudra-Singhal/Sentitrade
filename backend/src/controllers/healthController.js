@@ -12,11 +12,15 @@ const ready = (_req, res) => {
   const dbOk = dbConnected || (!dbConfigured && !isProd);
 
   const snap = metrics.snapshot();
+  const lastRun = snap.gauges.scheduler_last_run_at || null;
+  const schedulerStale =
+    dbConnected && lastRun ? Date.now() - new Date(lastRun).getTime() > 10 * 60 * 1000 : false;
+
   const checks = {
     db: dbOk ? "ok" : "down",
     simulated_data_suppressed_total: snap.counters.simulated_data_suppressed_total || 0,
-    last_news_fetch_ok_at: snap.gauges.last_news_fetch_ok_at || null,
-    last_price_fetch_ok_at: snap.gauges.last_price_fetch_ok_at || null
+    scheduler_last_run_at: lastRun,
+    scheduler: schedulerStale ? "stale" : "ok"
   };
 
   const ok = dbOk;
