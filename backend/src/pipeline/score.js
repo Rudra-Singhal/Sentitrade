@@ -1,6 +1,8 @@
 const { analyzeHeadline } = require("../services/sentimentService");
 const { normalizeAsset } = require("../services/assetService");
 const sentimentClient = require("../services/sentimentClient");
+const sentimentCache = require("./sentimentCache");
+const metrics = require("../lib/metrics");
 
 // The in-process fallback, unchanged since M1. From M3 it is the *fallback*:
 // the preferred scorer is the Python service (`sentiment-service/`), which
@@ -42,24 +44,35 @@ const fallbackSentiment = (normDoc) => {
   };
 };
 
-/** Synchronous single-document scoring (in-process only). */
+/** Synchronous single-document scoring (in-process only, never touches the cache). */
 const scoreDocument = (normDoc) => ({
   ...normDoc,
   sentiment: nativeSentiment(normDoc) || fallbackSentiment(normDoc)
 });
 
+const toSentimentFields = (cached) => ({
+  score: cached.score,
+  label: cached.label,
+  confidence: cached.confidence,
+  model: cached.model,
+  model_version: cached.model_version,
+  scored_at: new Date()
+});
+
 /**
- * Score a batch, preferring the sentiment service.
+ * Score a batch, preferring — in order — a platform-native label, a
+ * content-hash cache hit, then the sentiment service, then VADER.
  *
- * Documents carrying a platform-native label skip the model entirely. The rest
- * go to the service in one round trip; anything it does not return a usable
- * score for falls back to VADER. Never throws.
+ * Only genuine service results are cached (never a VADER fallback caused by
+ * the service being unreachable or a routed model failing) — see
+ * pipeline/sentimentCache.js. A cache hit therefore always means "this exact
+ * text, scored by the model that was supposed to score it". Never throws.
  */
 const scoreDocuments = async (docs = []) => {
   if (!docs.length) return [];
 
   const native = new Map();
-  const toScore = [];
+  const candidates = []; // { index, id, text, source_type, asset_class, target, key }
 
   docs.forEach((doc, index) => {
     const platform = nativeSentiment(doc);
@@ -67,42 +80,68 @@ const scoreDocuments = async (docs = []) => {
       native.set(index, platform);
       return;
     }
-    toScore.push({
+    const text = doc.title || doc.text || "";
+    if (!text) return; // falls through to fallbackSentiment below
+
+    const sourceType = doc.source_type || "news";
+    // `primary_asset` is what normalize() writes — NOT `asset`. Reading the
+    // wrong field here silently routed every document to the crypto model,
+    // because normalizeAsset() defaults an unknown symbol to BTC.
+    const assetClass = normalizeAsset(doc.primary_asset).type === "crypto" ? "crypto" : "equity";
+
+    candidates.push({
       index,
       id: String(index),
-      text: doc.title || doc.text || "",
-      source_type: doc.source_type || "news",
-      // `primary_asset` is what normalize() writes — NOT `asset`. Reading the
-      // wrong field here silently routed every document to the crypto model,
-      // because normalizeAsset() defaults an unknown symbol to BTC.
-      asset_class: normalizeAsset(doc.primary_asset).type === "crypto" ? "crypto" : "equity",
-      target: doc.primary_asset
+      text,
+      source_type: sourceType,
+      asset_class: assetClass,
+      target: doc.primary_asset,
+      key: sentimentCache.cacheKey(text, sourceType, assetClass)
     });
   });
 
+  const cacheHits = await sentimentCache.getMany(candidates.map((c) => c.key));
+  const toScore = candidates.filter((c) => !cacheHits.has(c.key));
+
+  metrics.inc("sentiment_cache_hit_total", candidates.length - toScore.length);
+  metrics.inc("sentiment_cache_miss_total", toScore.length);
+
   let scored = new Map();
   if (toScore.length && sentimentClient.isConfigured()) {
-    scored = await sentimentClient.scoreBatch(toScore.filter((item) => item.text));
+    scored = await sentimentClient.scoreBatch(toScore);
   }
+
+  // Write only real, non-degraded model results back — a fallback caused by a
+  // transient outage must not calcify into a permanent wrong answer for text
+  // the real model never actually saw.
+  const toCache = [];
+  for (const candidate of toScore) {
+    const result = scored.get(candidate.id);
+    if (result && !result.degraded) {
+      toCache.push({
+        key: candidate.key,
+        score: result.score,
+        label: result.label,
+        confidence: result.confidence,
+        model: result.model,
+        model_version: result.model_version
+      });
+    }
+  }
+  await sentimentCache.setMany(toCache);
 
   return docs.map((doc, index) => {
     const platform = native.get(index);
     if (platform) return { ...doc, sentiment: platform };
 
-    const fromService = scored.get(String(index));
-    if (fromService) {
-      return {
-        ...doc,
-        sentiment: {
-          score: fromService.score,
-          label: fromService.label,
-          confidence: fromService.confidence,
-          model: fromService.model,
-          model_version: fromService.model_version,
-          scored_at: new Date()
-        }
-      };
-    }
+    const candidate = candidates.find((c) => c.index === index);
+    if (!candidate) return { ...doc, sentiment: fallbackSentiment(doc) };
+
+    const cached = cacheHits.get(candidate.key);
+    if (cached) return { ...doc, sentiment: toSentimentFields(cached) };
+
+    const fromService = scored.get(candidate.id);
+    if (fromService) return { ...doc, sentiment: toSentimentFields(fromService) };
 
     return { ...doc, sentiment: fallbackSentiment(doc) };
   });
