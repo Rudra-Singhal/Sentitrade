@@ -2,6 +2,7 @@ const { analyzeHeadline } = require("../services/sentimentService");
 const { normalizeAsset } = require("../services/assetService");
 const sentimentClient = require("../services/sentimentClient");
 const sentimentCache = require("./sentimentCache");
+const targetWindow = require("./targetWindow");
 const metrics = require("../lib/metrics");
 
 // The in-process fallback, unchanged since M1. From M3 it is the *fallback*:
@@ -80,14 +81,22 @@ const scoreDocuments = async (docs = []) => {
       native.set(index, platform);
       return;
     }
-    const text = doc.title || doc.text || "";
-    if (!text) return; // falls through to fallbackSentiment below
+    const baseText = doc.title || doc.text || "";
+    if (!baseText) return; // falls through to fallbackSentiment below
 
     const sourceType = doc.source_type || "news";
     // `primary_asset` is what normalize() writes — NOT `asset`. Reading the
     // wrong field here silently routed every document to the crypto model,
     // because normalizeAsset() defaults an unknown symbol to BTC.
     const assetClass = normalizeAsset(doc.primary_asset).type === "crypto" ? "crypto" : "equity";
+
+    // Target-aware scoring: on a document that mentions more than one
+    // resolved asset ("NVDA soars. INTC stumbles."), narrow to the sentences
+    // that actually mention this asset rather than scoring the whole thing
+    // identically for both. A no-op on the single-asset documents that make
+    // up most of what the connectors return. See pipeline/targetWindow.js.
+    const entityCount = Array.isArray(doc.entities) ? doc.entities.length : 0;
+    const text = targetWindow.windowedText(baseText, doc.primary_asset, entityCount);
 
     candidates.push({
       index,

@@ -27,8 +27,12 @@ class ScoreItem(BaseModel):
     # analyst prose and measurably misreads crypto flow language, so crypto
     # news goes to the social model instead. See scripts/evaluate.py.
     asset_class: AssetClass = "equity"
-    # The resolved asset this document is about. Present from M3 phase 5
-    # (target-aware scoring); ignored until then.
+    # The resolved asset this document is about. Informational only here —
+    # target-aware scoring (M3 phase 5) is done upstream in Node, by narrowing
+    # `text` to the sentence(s) that mention this asset before it ever reaches
+    # this service (see backend/src/pipeline/targetWindow.js). There is no
+    # aspect-based-sentiment model in this stack for the service to use this
+    # field for directly.
     target: str | None = None
 
 
