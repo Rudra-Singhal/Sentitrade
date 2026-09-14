@@ -18,6 +18,9 @@ const schema = z.object({
   TWITTER_BEARER_TOKEN: z.string().optional(),
   TWITTERAPI_IO_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  // Python sentiment service (see sentiment-service/). Unset = score in-process
+  // with VADER, exactly as M1–M2 did.
+  SENTIMENT_SERVICE_URL: z.string().url().optional(),
   // Live price providers (Binance/Yahoo, both key-free) are ON by default.
   // Set to "false" only as a kill switch.
   ENABLE_LIVE_PRICE_API: z.enum(["true", "false"]).default("true"),

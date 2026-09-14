@@ -73,7 +73,10 @@ const connect = () =>
 const nextUpdate = (client) =>
   new Promise((resolve, reject) => {
     if (client._buf.length) return resolve(client._buf.shift());
-    const t = setTimeout(() => reject(new Error("no sentiment:update")), 4000);
+    // Generous on purpose: a snapshot is real work (DB reads + aggregation),
+    // and a tight deadline here fails on a loaded CI box rather than on a real
+    // defect. The assertion is "an update arrives at all", not "within 4s".
+    const t = setTimeout(() => reject(new Error("no sentiment:update")), 15000);
     client._waiters.push((p) => {
       clearTimeout(t);
       resolve(p);

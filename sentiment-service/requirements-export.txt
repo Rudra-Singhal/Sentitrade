@@ -1,0 +1,11 @@
+# One-time model export only (scripts/export_models.py). NEVER installed on the
+# serving container — ~2.5GB of PyTorch that onnxruntime does not need.
+#
+# Deliberately does not `-r requirements.txt`: the export stack pins an older
+# `tokenizers` than serving does, and forcing one resolution across both is
+# what makes this install unsolvable. Export writes a `tokenizer.json`, whose
+# format is stable across these versions, so the two never need to agree.
+torch==2.14.0
+transformers==4.57.6
+optimum==2.1.0
+optimum-onnx[onnxruntime]==0.1.0

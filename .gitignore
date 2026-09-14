@@ -5,3 +5,10 @@ dist/
 .env.local
 *.log
 backend/_*.mjs
+
+# Sentiment service: exported ONNX models (hundreds of MB, rebuilt by
+# sentiment-service/scripts/export_models.py) and its virtualenv.
+sentiment-service/models/
+sentiment-service/.venv/
+sentiment-service/**/__pycache__/
+sentiment-service/.pytest_cache/

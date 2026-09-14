@@ -1,0 +1,9 @@
+# Serving dependencies only — deliberately no torch/transformers, which is what
+# keeps this service inside a free-tier memory and image budget.
+fastapi==0.121.2
+uvicorn[standard]==0.41.0
+pydantic==2.12.4
+numpy==2.3.5
+onnxruntime==1.24.4
+tokenizers==0.23.1
+vaderSentiment==3.3.2
