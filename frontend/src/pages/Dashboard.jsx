@@ -240,7 +240,14 @@ const Dashboard = () => {
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(360px,3fr)]">
-          <TradingViewWidget asset={asset} tvSymbol={selectedAsset?.tradingViewSymbol} />
+          <TradingViewWidget
+            asset={asset}
+            tvSymbol={selectedAsset?.tradingViewSymbol}
+            exchange={selectedAsset?.exchange}
+            displayName={selectedAsset?.displayName}
+            currentPrice={correlation?.current_price}
+            priceSource={correlation?.price_source}
+          />
 
           <aside className="grid gap-5">
             <SentimentGauge data={sentiment} loading={loading} />
