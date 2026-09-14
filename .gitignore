@@ -12,3 +12,5 @@ sentiment-service/models/
 sentiment-service/.venv/
 sentiment-service/**/__pycache__/
 sentiment-service/.pytest_cache/
+presentation-workspace/
+presentation-experience-workspace/
