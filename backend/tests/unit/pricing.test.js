@@ -48,9 +48,25 @@ describe("yahoo", () => {
         ]
       }
     };
+    // window keeps only the last point; < 2 in-window -> fall back to the tail
     const series = yahoo.mapChart(payload, (now - 400) * 1000);
-    expect(series).toHaveLength(1);
-    expect(series[0].price).toBe(101.5);
+    expect(series.map((p) => p.price)).toEqual([100, 101.5]); // nulls dropped, tail kept
+  });
+
+  it("filters to the window when there is enough in-window data", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      chart: {
+        result: [
+          {
+            timestamp: [now - 900, now - 600, now - 120, now - 60],
+            indicators: { quote: [{ close: [10, 11, 12, 13] }] }
+          }
+        ]
+      }
+    };
+    const series = yahoo.mapChart(payload, (now - 300) * 1000);
+    expect(series.map((p) => p.price)).toEqual([12, 13]);
   });
 
   it("mapChart returns [] for an error payload", () => {

@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { ASSETS } = require("../services/assetService");
 
 const asset = z
   .string()
@@ -7,6 +8,9 @@ const asset = z
   .max(10)
   .regex(/^[A-Za-z0-9]+$/, "asset must be alphanumeric")
   .transform((value) => value.toUpperCase())
+  .refine((value) => Boolean(ASSETS[value]), {
+    message: "unknown asset — see GET /api/v1/assets for the tracked list"
+  })
   .default("BTC");
 
 const range = z.enum(["5m", "1h", "24h"]).default("1h");

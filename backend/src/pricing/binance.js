@@ -10,11 +10,11 @@ const PLAN = {
   "24h": { interval: "15m", limit: 100 }
 };
 
-const toBinanceSymbol = (asset) => {
-  const tv = asset.tradingViewSymbol || "";
-  if (tv.startsWith("BINANCE:")) return tv.slice("BINANCE:".length);
-  return `${asset.symbol}USDT`;
-};
+const toBinanceSymbol = (asset) =>
+  asset.binanceSymbol ||
+  (asset.tradingViewSymbol?.startsWith("BINANCE:")
+    ? asset.tradingViewSymbol.slice("BINANCE:".length)
+    : `${asset.symbol}USDT`);
 
 /** Pure: Binance kline rows -> our price series, filtered to the window. */
 const mapKlines = (rows, sinceMs) =>

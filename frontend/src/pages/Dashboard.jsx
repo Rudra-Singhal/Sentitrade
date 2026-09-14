@@ -8,6 +8,7 @@ import NewsFeed from "../components/NewsFeed.jsx";
 import SentimentChart from "../components/SentimentChart.jsx";
 import CorrelationBox from "../components/CorrelationBox.jsx";
 import MarketMetrics from "../components/MarketMetrics.jsx";
+import MarketContext from "../components/MarketContext.jsx";
 import AlertBanner from "../components/AlertBanner.jsx";
 import GlobalDataBanner from "../components/GlobalDataBanner.jsx";
 import Disclaimer from "../components/Disclaimer.jsx";
@@ -15,33 +16,56 @@ import { fetchAssets, fetchCorrelation, fetchSentiment, fetchTrend } from "../se
 import { createSocket } from "../services/socket.js";
 import { worstSource } from "../lib/dataSource.js";
 
+// Minimal fallback — the real list (crypto + US + NSE) comes from /api/v1/assets.
 const fallbackAssets = [
-  { symbol: "BTC", displayName: "Bitcoin", type: "crypto" },
-  { symbol: "ETH", displayName: "Ethereum", type: "crypto" },
-  { symbol: "SOL", displayName: "Solana", type: "crypto" },
-  { symbol: "BNB", displayName: "BNB", type: "crypto" },
-  { symbol: "XRP", displayName: "XRP", type: "crypto" },
-  { symbol: "AAPL", displayName: "Apple", type: "stock" },
-  { symbol: "MSFT", displayName: "Microsoft", type: "stock" },
-  { symbol: "GOOGL", displayName: "Alphabet", type: "stock" },
-  { symbol: "AMZN", displayName: "Amazon", type: "stock" },
-  { symbol: "NVDA", displayName: "NVIDIA", type: "stock" },
-  { symbol: "META", displayName: "Meta", type: "stock" },
-  { symbol: "TSLA", displayName: "Tesla", type: "stock" },
-  { symbol: "NFLX", displayName: "Netflix", type: "stock" },
-  { symbol: "AMD", displayName: "AMD", type: "stock" },
-  { symbol: "INTC", displayName: "Intel", type: "stock" },
-  { symbol: "JPM", displayName: "JPMorgan", type: "stock" },
-  { symbol: "V", displayName: "Visa", type: "stock" },
-  { symbol: "DIS", displayName: "Disney", type: "stock" },
-  { symbol: "PYPL", displayName: "PayPal", type: "stock" },
-  { symbol: "UBER", displayName: "Uber", type: "stock" }
+  {
+    symbol: "BTC",
+    displayName: "Bitcoin",
+    type: "crypto",
+    exchange: "CRYPTO",
+    tradingViewSymbol: "BINANCE:BTCUSDT"
+  },
+  {
+    symbol: "ETH",
+    displayName: "Ethereum",
+    type: "crypto",
+    exchange: "CRYPTO",
+    tradingViewSymbol: "BINANCE:ETHUSDT"
+  },
+  {
+    symbol: "AAPL",
+    displayName: "Apple",
+    type: "stock",
+    exchange: "US",
+    tradingViewSymbol: "NASDAQ:AAPL"
+  },
+  {
+    symbol: "NVDA",
+    displayName: "NVIDIA",
+    type: "stock",
+    exchange: "US",
+    tradingViewSymbol: "NASDAQ:NVDA"
+  },
+  {
+    symbol: "RELIANCE",
+    displayName: "Reliance Industries",
+    type: "stock",
+    exchange: "NSE",
+    tradingViewSymbol: "NSE:RELIANCE"
+  },
+  {
+    symbol: "TCS",
+    displayName: "Tata Consultancy Services",
+    type: "stock",
+    exchange: "NSE",
+    tradingViewSymbol: "NSE:TCS"
+  }
 ];
 
 const Dashboard = () => {
   const [assets, setAssets] = useState(fallbackAssets);
   const [asset, setAsset] = useState("BTC");
-  const [range, setRange] = useState("1h");
+  const [range, setRange] = useState("24h");
   const [sentiment, setSentiment] = useState(null);
   const [trend, setTrend] = useState([]);
   const [trendSource, setTrendSource] = useState(null);
@@ -216,7 +240,7 @@ const Dashboard = () => {
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(360px,3fr)]">
-          <TradingViewWidget asset={asset} />
+          <TradingViewWidget asset={asset} tvSymbol={selectedAsset?.tradingViewSymbol} />
 
           <aside className="grid gap-5">
             <SentimentGauge data={sentiment} loading={loading} />
@@ -232,6 +256,10 @@ const Dashboard = () => {
         <section className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
           <SentimentChart points={trend} source={trendSource} />
           <MarketMetrics sentiment={sentiment} trend={trend} correlation={correlation} />
+        </section>
+
+        <section className="mt-5">
+          <MarketContext sentiment={sentiment} />
         </section>
 
         <Disclaimer />

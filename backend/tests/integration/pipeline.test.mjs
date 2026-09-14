@@ -7,10 +7,11 @@ let ingestAsset;
 let RawDocument;
 let getLatestSentiment;
 let getSentimentTrend;
+let getSocialSentiment;
 
 const fakeConnector = (id, docs, opts = {}) => ({
   id,
-  sourceType: "news",
+  sourceType: opts.sourceType || "news",
   enabled: true,
   fetch: async () => {
     if (opts.throws) throw new Error(opts.throws);
@@ -23,7 +24,8 @@ beforeAll(async () => {
   await mongoose.connect(mongod.getUri());
   ({ ingestAsset } = await import("../../src/pipeline/ingest.js"));
   RawDocument = (await import("../../src/models/RawDocument.js")).default;
-  ({ getLatestSentiment, getSentimentTrend } = await import("../../src/services/newsService.js"));
+  ({ getLatestSentiment, getSentimentTrend, getSocialSentiment } =
+    await import("../../src/services/newsService.js"));
 }, 60000);
 
 afterAll(async () => {
@@ -62,6 +64,61 @@ describe("ingestAsset", () => {
     expect(docs[0].sentiment.label).toBe("positive");
     expect(docs[0].source).toBe("newsapi");
     expect(docs[0].source_type).toBe("news");
+    expect(docs[0].entities.some((e) => e.symbol === "BTC")).toBe(true);
+    expect(docs[0].relevance).toBeGreaterThan(0.35);
+  });
+
+  it("stores an off-topic doc but excludes it from the sentiment read", async () => {
+    await ingestAsset("BTC", {
+      limit: 10,
+      connectors: [
+        fakeConnector("newsapi", [
+          article("Bitcoin ETF demand climbs as investors stay optimistic"),
+          {
+            ...article("Fed holds rates steady as equity indices drift"),
+            text: "Bond yields eased slightly and traders stayed on the sidelines."
+          }
+        ])
+      ]
+    });
+
+    const stored = await RawDocument.countDocuments({ primary_asset: "BTC" });
+    expect(stored).toBe(2);
+
+    const snap = await getLatestSentiment("BTC", 10, false);
+    expect(snap.items).toHaveLength(1); // the passing-mention doc is filtered
+    expect(snap.items[0].text).toMatch(/ETF demand/);
+  });
+
+  it("flags the same story from two sources as a near-duplicate and counts it once", async () => {
+    const wireStory =
+      "Bitcoin spot ETF inflows accelerate as institutional demand improves further";
+    const reworded =
+      "Bitcoin ETF inflows accelerate on further improvement in institutional demand";
+
+    await ingestAsset("BTC", {
+      limit: 10,
+      connectors: [
+        fakeConnector("newsapi", [
+          { ...article(wireStory), provider_meta: { source_name: "Reuters" } }
+        ])
+      ]
+    });
+    await ingestAsset("BTC", {
+      limit: 10,
+      connectors: [
+        fakeConnector("rss", [{ ...article(reworded), provider_meta: { source_name: "CoinDesk" } }])
+      ]
+    });
+
+    const all = await RawDocument.find({ primary_asset: "BTC" }).lean();
+    expect(all).toHaveLength(2);
+    expect(all.filter((d) => d.is_duplicate)).toHaveLength(1);
+    expect(all.every((d) => d.simhash)).toBe(true);
+    expect(new Set(all.map((d) => d.cluster_id)).size).toBe(1); // same cluster
+
+    const snap = await getLatestSentiment("BTC", 10, false);
+    expect(snap.items).toHaveLength(1); // counted once
   });
 
   it("isolates a failing connector and still records the others", async () => {
@@ -93,16 +150,18 @@ describe("newsService reads from RawDocument", () => {
     expect(["positive", "neutral", "negative"]).toContain(snap.sentiment_label);
   });
 
-  it("labels stale-ingest docs 'cached'", async () => {
+  it("labels day-old news 'delayed' (freshness follows publish time, not fetch time)", async () => {
     await RawDocument.create({
       source: "newsapi",
       source_type: "news",
       dedupe_key: `stale-${Math.random()}`,
-      text: "An old but real headline about SOL",
+      text: "Solana ecosystem funding improves as on-chain activity climbs",
+      title: "Solana ecosystem funding improves as on-chain activity climbs",
       primary_asset: "SOL",
       assets: ["SOL"],
-      published_at: new Date(Date.now() - 30 * 60000),
-      ingested_at: new Date(Date.now() - 30 * 60000), // > 10min ago
+      relevance: 0.7,
+      published_at: new Date(Date.now() - 5 * 60 * 60 * 1000), // 5h old
+      ingested_at: new Date(),
       sentiment: {
         score: 0.1,
         label: "neutral",
@@ -113,7 +172,46 @@ describe("newsService reads from RawDocument", () => {
     });
 
     const snap = await getLatestSentiment("SOL", 10, false);
-    expect(snap.data_source).toBe("cached");
+    expect(snap.data_source).toBe("delayed");
+  });
+
+  it("aggregates social posts separately from news, with a bull/bear ratio", async () => {
+    await ingestAsset("BTC", {
+      limit: 20,
+      types: ["news", "social"],
+      connectors: [
+        fakeConnector(
+          "stocktwits",
+          [
+            {
+              text: "$BTC breaking out, loading up",
+              native_sentiment: "Bullish",
+              provider_meta: { source_name: "StockTwits" }
+            },
+            {
+              text: "$BTC looks weak, taking profits",
+              native_sentiment: "Bearish",
+              provider_meta: { source_name: "StockTwits" }
+            },
+            {
+              text: "$BTC to the moon",
+              native_sentiment: "Bullish",
+              provider_meta: { source_name: "StockTwits" }
+            }
+          ],
+          { sourceType: "social" }
+        )
+      ]
+    });
+
+    const social = await getSocialSentiment("BTC");
+    expect(social.count).toBe(3);
+    expect(social.data_source).toBe("live");
+    expect(social.bull_bear_ratio).toBe(2); // 2 bull / 1 bear
+
+    // the news read is unaffected
+    const news = await getLatestSentiment("BTC", 10, false);
+    expect(news.items.every((i) => !i.text.startsWith("$BTC"))).toBe(true);
   });
 
   it("builds a minute-bucketed trend and ignores docs outside the window", async () => {

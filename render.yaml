@@ -24,6 +24,20 @@ services:
         sync: false
       - key: FINNHUB_API_KEY
         sync: false
+      - key: STOCKTWITS_TOKEN
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USERNAME
+        sync: false
+      - key: REDDIT_PASSWORD
+        sync: false
+      - key: TWITTER_BEARER_TOKEN
+        sync: false
+      - key: TWITTERAPI_IO_KEY
+        sync: false
       - key: SENTRY_DSN
         sync: false
       - key: ENABLE_LIVE_PRICE_API

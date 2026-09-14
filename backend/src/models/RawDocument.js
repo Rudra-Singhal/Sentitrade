@@ -20,11 +20,20 @@ const rawDocumentSchema = new mongoose.Schema(
     // sha1 of normalized title/text — the real dedupe key (short strings only).
     dedupe_key: { type: String, required: true, unique: true },
 
+    // near-duplicate clustering (SimHash) — same story across sources
+    simhash: { type: String, default: null },
+    cluster_id: { type: String, default: null, index: true },
+    is_duplicate: { type: Boolean, default: false },
+
+    // base credibility weight of the source (see config/sources.js)
+    source_weight: { type: Number, default: 0.5 },
+
     url: { type: String, default: null },
     author: {
       handle: { type: String, default: null },
       followers: { type: Number, default: null },
-      account_age_days: { type: Number, default: null }
+      account_age_days: { type: Number, default: null },
+      quality: { type: Number, default: 1 } // 0..1, social/forum only (bot heuristic)
     },
 
     title: { type: String, default: "" },
@@ -34,9 +43,31 @@ const rawDocumentSchema = new mongoose.Schema(
     published_at: { type: Date, required: true },
     ingested_at: { type: Date, default: Date.now },
 
-    // Resolved to our asset universe. M1: single asset from the ingest query.
+    // Resolved to our asset universe by the entity-resolution stage.
     primary_asset: { type: String, required: true, uppercase: true, index: true },
     assets: { type: [String], default: [] },
+    entities: {
+      type: [
+        {
+          _id: false,
+          symbol: String,
+          name: String,
+          mentions: Number,
+          salience: Number,
+          cashtag: Boolean
+        }
+      ],
+      default: []
+    },
+    // 0..1 — how much this document is actually about `primary_asset`.
+    relevance: { type: Number, default: null },
+
+    // Structured event (SEC filings now; LLM-classified news/social in M3).
+    event: {
+      type: { type: String, default: null }, // earnings | executive_change | m&a | regulatory | ...
+      impact: { type: Number, default: null }, // 0..1
+      detail: { type: String, default: null }
+    },
 
     engagement: {
       likes: { type: Number, default: null },

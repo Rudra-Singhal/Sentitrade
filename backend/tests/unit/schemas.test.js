@@ -27,6 +27,18 @@ describe("sentimentQuery", () => {
     expect(sentimentQuery.safeParse({ asset: "DROP TABLE" }).success).toBe(false);
     expect(sentimentQuery.safeParse({ asset: "../etc" }).success).toBe(false);
   });
+
+  it("rejects an alphanumeric asset that isn't in the tracked universe", () => {
+    const result = sentimentQuery.safeParse({ asset: "XYZFAKE" });
+    expect(result.success).toBe(false);
+    expect(result.error.issues[0].message).toMatch(/unknown asset/);
+  });
+
+  it("still accepts real tracked assets across all three markets", () => {
+    expect(sentimentQuery.safeParse({ asset: "btc" }).success).toBe(true);
+    expect(sentimentQuery.safeParse({ asset: "aapl" }).success).toBe(true);
+    expect(sentimentQuery.safeParse({ asset: "reliance" }).success).toBe(true);
+  });
 });
 
 describe("trendQuery", () => {

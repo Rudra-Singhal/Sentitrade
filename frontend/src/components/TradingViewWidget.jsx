@@ -1,35 +1,10 @@
 import Card from "./Card.jsx";
 
-// Maps each asset symbol to its TradingView symbol string
-const symbolMap = {
-  // Crypto
-  BTC: "BINANCE:BTCUSDT",
-  ETH: "BINANCE:ETHUSDT",
-  SOL: "BINANCE:SOLUSDT",
-  BNB: "BINANCE:BNBUSDT",
-  XRP: "BINANCE:XRPUSDT",
-  // Stocks
-  AAPL: "NASDAQ:AAPL",
-  MSFT: "NASDAQ:MSFT",
-  GOOGL: "NASDAQ:GOOGL",
-  AMZN: "NASDAQ:AMZN",
-  NVDA: "NASDAQ:NVDA",
-  META: "NASDAQ:META",
-  TSLA: "NASDAQ:TSLA",
-  NFLX: "NASDAQ:NFLX",
-  AMD: "NASDAQ:AMD",
-  INTC: "NASDAQ:INTC",
-  JPM: "NYSE:JPM",
-  V: "NYSE:V",
-  DIS: "NYSE:DIS",
-  PYPL: "NASDAQ:PYPL",
-  UBER: "NYSE:UBER"
-};
-
-const TradingViewWidget = ({ asset = "BTC" }) => {
+const TradingViewWidget = ({ asset = "BTC", tvSymbol }) => {
+  const symbol = tvSymbol || `NASDAQ:${asset}`;
   const widgetConfig = {
     autosize: true,
-    symbol: symbolMap[asset] || `NASDAQ:${asset}`,
+    symbol,
     interval: "15",
     timezone: "Etc/UTC",
     theme: "dark",
@@ -49,7 +24,7 @@ const TradingViewWidget = ({ asset = "BTC" }) => {
   return (
     <Card className="h-[560px] overflow-hidden p-2 lg:h-[690px]">
       <iframe
-        key={asset}
+        key={symbol}
         title={`${asset} TradingView chart`}
         src={src}
         className="h-full w-full rounded-md border-0"
