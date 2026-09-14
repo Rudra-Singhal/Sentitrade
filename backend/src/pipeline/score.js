@@ -100,6 +100,7 @@ const scoreDocuments = async (docs = []) => {
     });
   });
 
+  const byIndex = new Map(candidates.map((c) => [c.index, c])); // O(1) lookup below, not a scan per doc
   const cacheHits = await sentimentCache.getMany(candidates.map((c) => c.key));
   const toScore = candidates.filter((c) => !cacheHits.has(c.key));
 
@@ -134,7 +135,7 @@ const scoreDocuments = async (docs = []) => {
     const platform = native.get(index);
     if (platform) return { ...doc, sentiment: platform };
 
-    const candidate = candidates.find((c) => c.index === index);
+    const candidate = byIndex.get(index);
     if (!candidate) return { ...doc, sentiment: fallbackSentiment(doc) };
 
     const cached = cacheHits.get(candidate.key);
