@@ -24,4 +24,7 @@ export const fetchCorrelation = (asset, range) =>
 
 export const fetchAssets = () => api.get("/assets").then((res) => res.data.assets);
 
+export const fetchPrice = (asset, range) =>
+  api.get("/price", { params: { asset, range } }).then((res) => res.data);
+
 export default api;

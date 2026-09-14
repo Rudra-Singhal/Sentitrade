@@ -29,4 +29,6 @@ const trendQuery = z.object({ asset, range });
 
 const correlationQuery = z.object({ asset, range });
 
-module.exports = { sentimentQuery, trendQuery, correlationQuery };
+const priceQuery = z.object({ asset, range });
+
+module.exports = { sentimentQuery, trendQuery, correlationQuery, priceQuery };

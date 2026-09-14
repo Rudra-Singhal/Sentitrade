@@ -33,9 +33,33 @@ describe("binance", () => {
     expect(binance.mapKlines(null, 0)).toEqual([]);
     expect(binance.mapKlines([{ not: "an array" }], 0)).toEqual([]);
   });
+
+  it("mapKlines carries open/high/low alongside close, for candlestick charts", () => {
+    const now = Date.now();
+    const rows = [[now - 60000, "100.111", "105.2", "98.4", "102.5", "10"]];
+    const [point] = binance.mapKlines(rows, now - 120000);
+    expect(point).toMatchObject({
+      open: 100.11,
+      high: 105.2,
+      low: 98.4,
+      close: 102.5,
+      price: 102.5
+    });
+  });
 });
 
 describe("yahoo", () => {
+  it("PLAN requests at least a 2-day window for intraday ranges, not 1", () => {
+    // Regression: range:"1d" returns ZERO bars from Yahoo once the market has
+    // been closed since Yahoo's own UTC day boundary — confirmed live against
+    // TCS.NS (0 bars at range=1d, 50 at range=2d, identical request
+    // otherwise). Every NSE price request was silently falling back to
+    // simulated data outside a narrow UTC window because of this. Do not
+    // shrink these back to "1d".
+    expect(yahoo.PLAN["5m"].range).not.toBe("1d");
+    expect(yahoo.PLAN["1h"].range).not.toBe("1d");
+  });
+
   it("mapChart pairs timestamps with closes and drops nulls / out-of-window", () => {
     const now = Math.floor(Date.now() / 1000);
     const payload = {
@@ -71,5 +95,40 @@ describe("yahoo", () => {
 
   it("mapChart returns [] for an error payload", () => {
     expect(yahoo.mapChart({ chart: { result: null, error: "x" } }, 0)).toEqual([]);
+  });
+
+  it("mapChart carries real open/high/low alongside close, for candlestick charts", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      chart: {
+        result: [
+          {
+            timestamp: [now - 60],
+            indicators: {
+              quote: [{ close: [101.5], open: [99.2], high: [102.1], low: [98.75] }]
+            }
+          }
+        ]
+      }
+    };
+    const [point] = yahoo.mapChart(payload, (now - 300) * 1000);
+    expect(point).toMatchObject({
+      open: 99.2,
+      high: 102.1,
+      low: 98.75,
+      close: 101.5,
+      price: 101.5
+    });
+  });
+
+  it("mapChart falls back to close for open/high/low when Yahoo omits them", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      chart: {
+        result: [{ timestamp: [now - 60], indicators: { quote: [{ close: [50] }] } }]
+      }
+    };
+    const [point] = yahoo.mapChart(payload, (now - 300) * 1000);
+    expect(point).toMatchObject({ open: 50, high: 50, low: 50, close: 50 });
   });
 });

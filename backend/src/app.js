@@ -15,6 +15,7 @@ const healthRoutes = require("./routes/healthRoutes");
 const sentimentRoutes = require("./routes/sentimentRoutes");
 const correlationRoutes = require("./routes/correlationRoutes");
 const assetRoutes = require("./routes/assetRoutes");
+const priceRoutes = require("./routes/priceRoutes");
 
 // Pure Express app — no DB connection, no listener, no scheduler. `server.js`
 // wires those up for the real process; tests import this directly.
@@ -56,6 +57,7 @@ app.use("/api", healthRoutes);
 app.use("/api/v1", assetRoutes);
 app.use("/api/v1", sentimentRoutes);
 app.use("/api/v1", correlationRoutes);
+app.use("/api/v1", priceRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });

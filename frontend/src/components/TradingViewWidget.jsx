@@ -1,77 +1,20 @@
 import Card from "./Card.jsx";
+import PriceChart from "./PriceChart.jsx";
 
 // TradingView's free/anonymous embed does not carry NSE (India) data at all —
 // verified against both their embed domains, same "only available on
 // TradingView" notice on their own official widget, not just ours. This is a
 // data-licensing restriction on TradingView's side, not a symbol-format or
-// config problem: no widget parameter fixes it. Rather than show a broken
-// iframe and TradingView's own intrusive popup, skip the embed for these and
-// show the real price SentiTrade already has from Yahoo Finance instead.
+// config problem: no widget parameter fixes it. For these exchanges,
+// PriceChart.jsx draws SentiTrade's own candlestick chart from real Yahoo
+// Finance OHLC data instead.
 const CHART_UNSUPPORTED_EXCHANGES = new Set(["NSE"]);
 
-const formatPrice = (value, exchange) => {
-  if (typeof value !== "number") return null;
-  const currency = exchange === "NSE" ? "₹" : "$";
-  return `${currency}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-};
-
-const PRICE_SOURCE_LABEL = {
-  live: "Live",
-  delayed: "Delayed",
-  cached: "Cached",
-  simulated: "Simulated",
-  unavailable: "Unavailable"
-};
-
-/** Shown instead of the iframe for exchanges TradingView's free embed can't serve. */
-const ChartUnavailable = ({ asset, displayName, currentPrice, priceSource, exchange }) => {
-  const price = formatPrice(currentPrice, exchange);
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <p className="text-sm font-semibold text-slate-300">
-        Live chart isn&apos;t available for {displayName || asset} here
-      </p>
-      <p className="max-w-sm text-xs text-slate-500">
-        TradingView&apos;s free embed doesn&apos;t carry NSE (India) market data — that&apos;s a
-        restriction on their side, not a SentiTrade data problem. The real price below, and every
-        sentiment figure on this page, is unaffected.
-      </p>
-      {price ? (
-        <div className="mt-1 rounded-lg border border-white/10 bg-white/5 px-5 py-3">
-          <div className="text-2xl font-bold text-slate-100">{price}</div>
-          <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">
-            {PRICE_SOURCE_LABEL[priceSource] || "Price"} · Yahoo Finance
-          </div>
-        </div>
-      ) : (
-        <div className="mt-1 text-xs text-slate-600">Price not available for this window yet.</div>
-      )}
-    </div>
-  );
-};
-
-const TradingViewWidget = ({
-  asset = "BTC",
-  tvSymbol,
-  exchange,
-  displayName,
-  currentPrice,
-  priceSource
-}) => {
+const TradingViewWidget = ({ asset = "BTC", tvSymbol, exchange, displayName, range = "1h" }) => {
   const symbol = tvSymbol || `NASDAQ:${asset}`;
 
   if (CHART_UNSUPPORTED_EXCHANGES.has(exchange)) {
-    return (
-      <Card className="h-[560px] overflow-hidden p-2 lg:h-[690px]">
-        <ChartUnavailable
-          asset={asset}
-          displayName={displayName}
-          currentPrice={currentPrice}
-          priceSource={priceSource}
-          exchange={exchange}
-        />
-      </Card>
-    );
+    return <PriceChart asset={asset} range={range} displayName={displayName} />;
   }
 
   const widgetConfig = {

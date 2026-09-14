@@ -16,13 +16,21 @@ const toBinanceSymbol = (asset) =>
     ? asset.tradingViewSymbol.slice("BINANCE:".length)
     : `${asset.symbol}USDT`);
 
-/** Pure: Binance kline rows -> our price series, filtered to the window. */
+const round2 = (n) => Number(Number(n).toFixed(2));
+
+// kline row: [openTime, open, high, low, close, volume, ...]
+/** Pure: Binance kline rows -> our price series, filtered to the window.
+ * Carries OHLC (not just close) so a candlestick chart can be drawn from it. */
 const mapKlines = (rows, sinceMs) =>
   (Array.isArray(rows) ? rows : [])
     .filter((k) => Array.isArray(k) && k[0] >= sinceMs)
     .map((k) => ({
       timestamp: new Date(k[0]).toISOString(),
-      price: Number(Number(k[4]).toFixed(2))
+      price: round2(k[4]),
+      open: round2(k[1]),
+      high: round2(k[2]),
+      low: round2(k[3]),
+      close: round2(k[4])
     }));
 
 const binanceProvider = {
