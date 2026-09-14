@@ -1,0 +1,24 @@
+{
+  "workspace": "/Users/rudra_singhal/SentiTrade/presentation-experience-workspace",
+  "pptx": "/Users/rudra_singhal/SentiTrade/presentation-experience-workspace/output/output.pptx",
+  "checks": {
+    "pptx_package": {
+      "slide_count": 15,
+      "media_count": 0,
+      "chart_count": 1,
+      "zero_byte_media": [],
+      "invalid_png_media": [],
+      "placeholder_text": [],
+      "debug_line_colors": [],
+      "slide_numbers": [],
+      "warnings": [],
+      "failures": []
+    },
+    "output_hygiene": {
+      "output_dir": "/Users/rudra_singhal/SentiTrade/presentation-experience-workspace/output",
+      "unexpected_files": []
+    }
+  },
+  "failures": [],
+  "warnings": []
+}

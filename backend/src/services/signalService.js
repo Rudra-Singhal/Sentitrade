@@ -1,3 +1,8 @@
+const { isUsable } = require("../lib/dataSource");
+
+const DISCLAIMER =
+  "Educational tool only. Not investment advice and not a recommendation to buy or sell any asset. Signals are illustrative and have not been backtested.";
+
 const getHeadlineStats = (items = []) => {
   const total = items.length;
   const counts = items.reduce(
@@ -25,11 +30,35 @@ const getSignalTone = (signal) => {
   return "neutral";
 };
 
+// Qualitative label — replaces the old fabricated numeric "confidence %".
+const getStrength = (score) => {
+  const magnitude = Math.abs(score);
+  if (magnitude >= 6) return "high";
+  if (magnitude >= 4) return "moderate";
+  return "low";
+};
+
+const insufficientData = () => ({
+  signal: "HOLD",
+  tone: "neutral",
+  strength: "low",
+  score: 0,
+  reasons: ["Not enough live data to form a view right now."],
+  data_source: "unavailable",
+  disclaimer: DISCLAIMER
+});
+
 const generateTradeSignal = ({ sentiment, correlation }) => {
-  const stats = getHeadlineStats(sentiment?.items || []);
-  const sentimentPercent = sentiment?.score_percent || 50;
-  const sentimentChange = correlation?.sentiment_change || 0;
-  const priceChange = correlation?.price_change || 0;
+  const items = sentiment?.items || [];
+  if (!items.length || !isUsable(sentiment?.data_source)) return insufficientData();
+
+  const correlationUsable =
+    isUsable(correlation?.data_source) && correlation?.sentiment_change !== null;
+
+  const stats = getHeadlineStats(items);
+  const sentimentPercent = sentiment?.score_percent ?? 50;
+  const sentimentChange = correlationUsable ? correlation?.sentiment_change ?? 0 : 0;
+  const priceChange = correlationUsable ? correlation?.price_change ?? 0 : 0;
   const reasons = [];
   let score = 0;
 
@@ -52,39 +81,31 @@ const generateTradeSignal = ({ sentiment, correlation }) => {
   if (priceChange >= 0.75) score += 1;
   else if (priceChange <= -0.75) score -= 1;
 
-  if (correlation?.insight === "Positive correlation detected") {
-    if (sentimentChange > 0 && priceChange > 0) score += 2;
-    if (sentimentChange < 0 && priceChange < 0) score -= 2;
-  }
-
   let signal = "HOLD";
   if (score >= 4) signal = "BUY";
   if (score <= -4) signal = "SELL";
 
-  const conflictPenalty =
-    (signal === "BUY" && sentimentPercent <= 50) || (signal === "SELL" && sentimentPercent >= 50) ? 10 : 0;
-  const confidence = Math.round(
-    Math.min(92, Math.max(45, 45 + Math.abs(score) * 7 + Math.min(stats.total, 20) * 0.6 - conflictPenalty))
-  );
-
-  pushReason(reasons, sentimentPercent >= 55, `Overall sentiment is constructive at ${sentimentPercent}%.`);
-  pushReason(reasons, sentimentPercent <= 45, `Overall sentiment is weak at ${sentimentPercent}%.`);
-  pushReason(reasons, stats.positiveRatio >= 55, `${stats.positiveRatio}% of recent headlines are positive.`);
-  pushReason(reasons, stats.negativeRatio >= 45, `${stats.negativeRatio}% of recent headlines are negative.`);
-  pushReason(reasons, sentimentChange >= 3, `Sentiment momentum improved by ${sentimentChange} points.`);
-  pushReason(reasons, sentimentChange <= -3, `Sentiment momentum fell by ${Math.abs(sentimentChange)} points.`);
-  pushReason(reasons, priceChange >= 0.75, `Price is up ${priceChange}% in the selected window.`);
-  pushReason(reasons, priceChange <= -0.75, `Price is down ${Math.abs(priceChange)}% in the selected window.`);
-  pushReason(reasons, signal === "HOLD", "Signals are mixed or not strong enough, so waiting is safer.");
+  pushReason(reasons, sentimentPercent >= 55, `Overall news tone is constructive at ${sentimentPercent}%.`);
+  pushReason(reasons, sentimentPercent <= 45, `Overall news tone is weak at ${sentimentPercent}%.`);
+  pushReason(reasons, stats.positiveRatio >= 55, `${stats.positiveRatio}% of recent headlines read positive.`);
+  pushReason(reasons, stats.negativeRatio >= 45, `${stats.negativeRatio}% of recent headlines read negative.`);
+  pushReason(reasons, correlationUsable && sentimentChange >= 3, `News tone improved by ${sentimentChange} points this window.`);
+  pushReason(reasons, correlationUsable && sentimentChange <= -3, `News tone fell by ${Math.abs(sentimentChange)} points this window.`);
+  pushReason(reasons, correlationUsable && priceChange >= 0.75, `Price is up ${priceChange}% in the selected window.`);
+  pushReason(reasons, correlationUsable && priceChange <= -0.75, `Price is down ${Math.abs(priceChange)}% in the selected window.`);
+  pushReason(reasons, !correlationUsable, "Price data is unavailable, so only news tone is considered.");
+  pushReason(reasons, signal === "HOLD", "Signals are mixed or not strong enough to lean either way.");
 
   return {
     signal,
     tone: getSignalTone(signal),
-    confidence,
+    strength: getStrength(score),
     score,
     reasons: reasons.slice(0, 4),
-    disclaimer: "Educational signal only. Not financial advice."
+    data_source: sentiment.data_source,
+    price_considered: correlationUsable,
+    disclaimer: DISCLAIMER
   };
 };
 
-module.exports = { generateTradeSignal };
+module.exports = { generateTradeSignal, DISCLAIMER };

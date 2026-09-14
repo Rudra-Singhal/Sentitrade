@@ -1,0 +1,19 @@
+# Extends the default gitleaks ruleset.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Docs and example env files contain placeholder / illustrative values only"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.production\.example$''',
+  '''AUDIT\.md''',
+  '''METHODOLOGY\.md''',
+  '''V2_ROADMAP\.md''',
+  '''README\.md''',
+]
+regexes = [
+  '''username:password@''',
+  '''your_newsapi_key''',
+  '''sentiTrade:sentiTrade''',
+]

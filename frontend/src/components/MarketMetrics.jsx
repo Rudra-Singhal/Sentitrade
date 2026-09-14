@@ -1,5 +1,7 @@
 import { Activity, BarChart3, Gauge, Newspaper, TrendingDown, TrendingUp } from "lucide-react";
 import Card from "./Card.jsx";
+import DataSourceBadge from "./DataSourceBadge.jsx";
+import Disclaimer from "./Disclaimer.jsx";
 
 const toneClasses = {
   positive: "text-neon bg-neon/10 border-neon/20",
@@ -7,6 +9,8 @@ const toneClasses = {
   negative: "text-danger bg-danger/10 border-danger/20",
   info: "text-cyanline bg-cyanline/10 border-cyanline/20"
 };
+
+const strengthLabel = { low: "Weak", moderate: "Moderate", high: "Strong" };
 
 const getHeadlineStats = (items = []) => {
   const total = items.length || 0;
@@ -28,38 +32,22 @@ const getHeadlineStats = (items = []) => {
 };
 
 const getMomentum = (points = []) => {
-  if (points.length < 2) return 0;
-
-  const first = points[0].sentiment_percent || 50;
-  const last = points[points.length - 1].sentiment_percent || first;
-
+  if (points.length < 2) return null;
+  const first = points[0].sentiment_percent ?? 50;
+  const last = points[points.length - 1].sentiment_percent ?? first;
   return Number((last - first).toFixed(1));
 };
 
 const signed = (value, suffix = "%") => {
-  const number = Number(value || 0);
+  if (value === null || value === undefined) return "—";
+  const number = Number(value);
   return `${number > 0 ? "+" : ""}${number}${suffix}`;
 };
 
 const signalStyles = {
-  BUY: {
-    border: "border-neon/25",
-    bg: "bg-neon/10",
-    text: "text-neon",
-    icon: TrendingUp
-  },
-  SELL: {
-    border: "border-danger/25",
-    bg: "bg-danger/10",
-    text: "text-danger",
-    icon: TrendingDown
-  },
-  HOLD: {
-    border: "border-warning/25",
-    bg: "bg-warning/10",
-    text: "text-warning",
-    icon: Activity
-  }
+  BUY: { border: "border-neon/25", bg: "bg-neon/10", text: "text-neon", icon: TrendingUp },
+  SELL: { border: "border-danger/25", bg: "bg-danger/10", text: "text-danger", icon: TrendingDown },
+  HOLD: { border: "border-warning/25", bg: "bg-warning/10", text: "text-warning", icon: Activity }
 };
 
 const MetricTile = ({ icon: Icon, label, value, helper, tone = "info" }) => (
@@ -79,28 +67,33 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
   const items = sentiment?.items || [];
   const stats = getHeadlineStats(items);
   const momentum = getMomentum(trend);
-  const priceMove = correlation?.price_change || 0;
+  const priceMove = correlation?.price_change ?? null;
   const signal = sentiment?.signal || correlation?.signal;
   const signalStyle = signalStyles[signal?.signal] || signalStyles.HOLD;
   const SignalIcon = signalStyle.icon;
-  const momentumTone = momentum > 0 ? "positive" : momentum < 0 ? "negative" : "neutral";
-  const priceTone = priceMove > 0 ? "positive" : priceMove < 0 ? "negative" : "neutral";
+  const momentumTone = momentum === null ? "info" : momentum > 0 ? "positive" : momentum < 0 ? "negative" : "neutral";
+  const priceTone = priceMove === null ? "info" : priceMove > 0 ? "positive" : priceMove < 0 ? "negative" : "neutral";
 
   return (
     <Card className="p-5">
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Metrics</p>
-        <h2 className="mt-1 text-xl font-bold text-white">Market Snapshot</h2>
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Metrics</p>
+          <h2 className="mt-1 text-xl font-bold text-white">Market Snapshot</h2>
+          <DataSourceBadge source={sentiment?.data_source} asOf={sentiment?.as_of} className="mt-2" />
+        </div>
       </div>
 
       <div className={`mb-4 rounded-lg border p-4 ${signalStyle.border} ${signalStyle.bg}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Trade Signal</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+              Illustrative signal
+            </p>
             <div className="mt-2 flex flex-wrap items-end gap-3">
               <p className={`text-4xl font-extrabold ${signalStyle.text}`}>{signal?.signal || "HOLD"}</p>
               <p className="pb-1 text-sm font-semibold text-slate-300">
-                {signal?.confidence || 45}% confidence
+                {strengthLabel[signal?.strength] || "Weak"} signal alignment
               </p>
             </div>
           </div>
@@ -110,7 +103,7 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
         </div>
 
         <div className="mt-3 space-y-1">
-          {(signal?.reasons || ["Signals are mixed or not strong enough, so waiting is safer."]).map((reason) => (
+          {(signal?.reasons || ["Not enough data to lean either way."]).map((reason) => (
             <p key={reason} className="text-xs leading-5 text-slate-300">
               {reason}
             </p>
@@ -123,19 +116,19 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
           icon={Newspaper}
           label="News Volume"
           value={stats.total}
-          helper="Latest headlines analyzed for this asset"
+          helper="Headlines analyzed for this asset"
           tone="info"
         />
         <MetricTile
           icon={Gauge}
           label="Positive Ratio"
-          value={`${stats.positive}%`}
-          helper={`${stats.counts.positive} positive out of ${stats.total || 0} headlines`}
+          value={stats.total ? `${stats.positive}%` : "—"}
+          helper={`${stats.counts.positive} positive of ${stats.total || 0} headlines`}
           tone={stats.positive >= 50 ? "positive" : "neutral"}
         />
         <MetricTile
           icon={TrendingUp}
-          label="Sentiment Move"
+          label="News Tone Move"
           value={signed(momentum, " pts")}
           helper="Change from first to latest trend point"
           tone={momentumTone}
@@ -144,7 +137,7 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
           icon={BarChart3}
           label="Price Move"
           value={signed(priceMove)}
-          helper="Backend correlation price movement"
+          helper="Price change over the selected window"
           tone={priceTone}
         />
       </div>
@@ -152,7 +145,7 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
       <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Headline Mix</p>
-          <p className="text-xs font-semibold text-slate-400">{correlation?.insight || "Waiting for signal"}</p>
+          <p className="text-xs font-semibold text-slate-400">{correlation?.insight || "Waiting for data"}</p>
         </div>
         <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
           <div className="bg-neon" style={{ width: `${stats.positive}%` }} />
@@ -165,6 +158,8 @@ const MarketMetrics = ({ sentiment, trend = [], correlation }) => {
           <span className="text-danger">Negative {stats.negative}%</span>
         </div>
       </div>
+
+      <Disclaimer variant="inline" />
     </Card>
   );
 };

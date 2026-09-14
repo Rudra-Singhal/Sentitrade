@@ -3,32 +3,24 @@ const { getCorrelationInsight } = require("../services/correlationService");
 const { createMarketSummary } = require("../services/summaryService");
 const { generateTradeSignal } = require("../services/signalService");
 
-const getSentiment = async (req, res, next) => {
-  try {
-    const asset = req.query.asset || "BTC";
-    const limit = Number(req.query.limit || 20);
-    const refresh = req.query.refresh !== "false";
-    const snapshot = await getLatestSentiment(asset, limit, refresh);
-    const correlation = await getCorrelationInsight(snapshot.asset, req.query.range || "1h");
-    const signal = generateTradeSignal({ sentiment: snapshot, correlation });
+const getSentiment = async (req, res) => {
+  const { asset, range, limit, refresh } = req.validatedQuery;
 
-    res.json({
-      ...snapshot,
-      signal,
-      summary: createMarketSummary({ sentiment: snapshot, correlation })
-    });
-  } catch (error) {
-    next(error);
-  }
+  const snapshot = await getLatestSentiment(asset, limit, refresh);
+  const correlation = await getCorrelationInsight(snapshot.asset, range);
+  const signal = generateTradeSignal({ sentiment: snapshot, correlation });
+
+  res.json({
+    ...snapshot,
+    signal,
+    correlation_data_source: correlation.data_source,
+    summary: createMarketSummary({ sentiment: snapshot, correlation })
+  });
 };
 
-const getTrend = async (req, res, next) => {
-  try {
-    const trend = await getSentimentTrend(req.query.asset || "BTC", req.query.range || "1h");
-    res.json(trend);
-  } catch (error) {
-    next(error);
-  }
+const getTrend = async (req, res) => {
+  const { asset, range } = req.validatedQuery;
+  res.json(await getSentimentTrend(asset, range));
 };
 
 module.exports = { getSentiment, getTrend };
